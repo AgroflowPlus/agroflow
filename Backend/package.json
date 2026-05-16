@@ -2,14 +2,14 @@
   "name": "backend",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {
-    "dev": "nodemon --exec ts-node src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "prisma:generate": "prisma generate",
-    "prisma:push": "prisma db push",
-    "prisma:studio": "prisma studio"
-  },
+"scripts": {
+  "dev": "nodemon --exec ts-node src/index.ts",
+  "build": "tsc",
+  "start": "node dist/index.js",
+  "prisma:generate": "npx prisma@5.22.0 generate",
+  "prisma:push": "npx prisma@5.22.0 db push",
+  "prisma:studio": "npx prisma@5.22.0 studio"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
