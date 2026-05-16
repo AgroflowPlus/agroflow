@@ -1,0 +1,553 @@
+/* ═══════════════════════════════════════════════════════
+   auth.module.css — Shared styles for Register & Login
+   Split layout: farm photo left | form right
+   ═══════════════════════════════════════════════════════ */
+
+/* ── SHELL ─────────────────────────────────────────────── */
+.shell {
+  display: flex;
+  min-height: 100svh;
+  background: #ffffff;
+  font-family: var(--font);
+}
+
+/* ══════════════════════════════════════════════════════
+   LEFT PANEL — farm photo
+══════════════════════════════════════════════════════ */
+.left {
+  display: none;
+  position: relative;
+  flex: 0 0 42%;
+  overflow: hidden;
+}
+
+@media (min-width: 900px) { .left { display: block; } }
+
+.leftBg {
+  position: absolute; inset: 0;
+  background-size: cover;
+  background-position: center center;
+  transition: transform 0.8s ease;
+}
+.left:hover .leftBg { transform: scale(1.03); }
+
+/* Dark gradient overlay — top & bottom edges */
+.leftOverlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(10,20,12,0.72) 0%,
+    rgba(10,20,12,0.18) 40%,
+    rgba(10,20,12,0.18) 65%,
+    rgba(10,20,12,0.80) 100%
+  );
+}
+
+/* Top-left logo */
+.leftLogo {
+  position: absolute;
+  top: 32px; left: 32px;
+  z-index: 10;
+  display: flex; align-items: center; gap: 9px;
+}
+.leftLogoMark {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: #a8d832;
+  display: flex; align-items: center; justify-content: center;
+  color: #141f15;
+}
+.leftLogoText {
+  font-size: 16px; font-weight: 700;
+  color: #fff; letter-spacing: -0.02em;
+}
+.leftLogoText span { color: #a8d832; }
+
+/* Bottom caption */
+.leftCaption {
+  position: absolute;
+  bottom: 36px; left: 32px; right: 32px;
+  z-index: 10;
+}
+.leftCaptionTag {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 12px; border-radius: 100px;
+  background: rgba(168,216,50,0.18);
+  border: 1px solid rgba(168,216,50,0.4);
+  margin-bottom: 12px;
+}
+.leftCaptionDot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #a8d832;
+}
+.leftCaptionTagText {
+  font-size: 10px; font-weight: 700;
+  color: #a8d832; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.leftCaptionTitle {
+  font-size: 24px; font-weight: 800;
+  color: #fff; letter-spacing: -0.03em; line-height: 1.2;
+  margin-bottom: 8px;
+}
+.leftCaptionTitle em { font-style: normal; color: #a8d832; }
+.leftCaptionSub {
+  font-size: 13px; color: rgba(255,255,255,0.62); line-height: 1.6;
+}
+
+/* ══════════════════════════════════════════════════════
+   RIGHT PANEL — form
+══════════════════════════════════════════════════════ */
+.right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+/* ── TOP BAR ─────────────────────────────────────────── */
+.rightTopBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 36px;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.topBarRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.topBarText {
+  font-size: 13px;
+  color: #6b7f6e;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.topBarBtn {
+  padding: 7px 18px;
+  border-radius: 100px;
+  border: 1.5px solid #c8d4c2;
+  background: transparent;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: #2d6a35;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+.topBarBtn:hover { border-color: #2d6a35; background: #f2f9e4; }
+
+/* Logo — always visible, always left */
+.mobileLogo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.mobileLogoMark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #a8d832;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #141f15;
+  flex-shrink: 0;
+}
+.mobileLogoText {
+  font-size: 15px;
+  font-weight: 700;
+  color: #141f15;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.mobileLogoText span { color: #2d6a35; }
+
+@media (min-width: 900px) { .mobileLogo { display: none; } }
+
+@media (max-width: 768px) {
+  .rightTopBar { padding: 16px 24px; }
+}
+
+@media (max-width: 480px) {
+  .rightTopBar { padding: 12px 16px; }
+  .mobileLogo { display: flex; }
+  .topBarText { display: none; }
+  .topBarBtn { font-size: 12px; padding: 7px 14px; }
+  .mobileLogoText { font-size: 14px; }
+  .mobileLogoMark { width: 28px; height: 28px; border-radius: 7px; }
+}
+
+/* ── FORM WRAP ───────────────────────────────────────── */
+.formWrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px 36px 48px;
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.formTitle {
+  font-size: clamp(24px, 4vw, 32px);
+  font-weight: 800; color: #141f15;
+  letter-spacing: -0.03em; margin-bottom: 6px;
+}
+.formSubtitle {
+  font-size: 14px; color: #6b7f6e; margin-bottom: 32px;
+}
+
+/* ── ROLE TABS (Register only) ──────────────────────── */
+.roleTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+.roleTab {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 11px 16px; border-radius: 10px;
+  border: 1.5px solid #e2e8df; background: #f7f8f5;
+  font-family: var(--font); font-size: 13px; font-weight: 600;
+  color: #6b7f6e; cursor: pointer;
+  transition: all 0.2s ease;
+}
+.roleTab:hover { border-color: #a8d832; color: #1e3d22; background: #f2f9e4; }
+.roleTabActive {
+  border-color: #a8d832; background: #f2f9e4;
+  color: #141f15;
+}
+.roleTabIcon { font-size: 16px; }
+
+/* intent toggle */
+.intentRow {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 20px;
+}
+.intentLabel { font-size: 12px; font-weight: 600; color: #6b7f6e; }
+.intentToggle {
+  display: flex; border-radius: 100px;
+  background: #f2f9e4; border: 1.5px solid #d4ee80;
+  overflow: hidden;
+}
+.intentBtn {
+  padding: 6px 18px;
+  border: none; background: transparent;
+  font-family: var(--font); font-size: 12px; font-weight: 700;
+  color: #6b7f6e; cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 100px;
+}
+.intentBtnActive { background: #a8d832; color: #141f15; }
+
+/* ── DIVIDER ─────────────────────────────────────────── */
+.divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 20px 0;
+}
+.dividerLine { flex: 1; height: 1px; background: #e2e8df; }
+.dividerText { font-size: 12px; color: #9ead9f; font-weight: 500; }
+
+/* ── FORM FIELDS ─────────────────────────────────────── */
+.fields { display: flex; flex-direction: column; gap: 14px; }
+
+.fieldGroup {
+  display: flex; flex-direction: column; gap: 5px;
+}
+.fieldLabel {
+  font-size: 12px; font-weight: 600;
+  color: #3a4f3d; letter-spacing: 0.01em;
+}
+.fieldInput {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #e2e8df;
+  background: #f7f8f5;
+  font-family: var(--font); font-size: 14px;
+  color: #141f15;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+}
+.fieldInput::placeholder { color: #b0bcb2; }
+.fieldInput:focus {
+  border-color: #a8d832;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(168,216,50,0.15);
+}
+.fieldInput.fieldError {
+  border-color: #e05252;
+  box-shadow: 0 0 0 3px rgba(224,82,82,0.1);
+}
+
+/* input with icon */
+.fieldInputWrap {
+  position: relative;
+}
+.fieldInputWrap .fieldInput { padding-left: 40px; }
+.fieldInputIcon {
+  position: absolute; left: 13px; top: 50%;
+  transform: translateY(-50%);
+  color: #9ead9f; pointer-events: none;
+}
+.fieldInputWrap .fieldInput { padding-right: 42px; }
+.fieldPasswordToggle {
+  position: absolute; right: 13px; top: 50%;
+  transform: translateY(-50%);
+  background: none; border: none;
+  color: #9ead9f; cursor: pointer;
+  display: flex; align-items: center;
+  transition: color 0.2s ease;
+}
+.fieldPasswordToggle:hover { color: #2d6a35; }
+
+/* select */
+.fieldSelect {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #e2e8df;
+  background: #f7f8f5;
+  font-family: var(--font); font-size: 14px;
+  color: #141f15; cursor: pointer;
+  outline: none;
+  appearance: none;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+.fieldSelect:focus {
+  border-color: #a8d832; background: #fff;
+  box-shadow: 0 0 0 3px rgba(168,216,50,0.15);
+}
+
+/* two-col row */
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* error msg */
+.fieldErrMsg {
+  font-size: 11px; color: #e05252; font-weight: 500;
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 2px;
+}
+
+/* ── PASSWORD STRENGTH ───────────────────────────────── */
+.pwdStrength {
+  width: 100%;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.pwdBars {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  margin-bottom: 5px;
+}
+
+.pwdBar {
+  flex: 1;
+  height: 4px;
+  border-radius: 99px;
+  transition: background 0.3s ease;
+}
+
+.pwdLabel {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.pwdReqs {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pwdReq {
+  font-size: 11px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.2s ease;
+}
+
+/* ── SUBMIT BUTTON ─────────────────────────────────── */
+.submitBtn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%;
+  padding: 15px 28px; border-radius: 100px;
+  background: #a8d832; border: none;
+  font-family: var(--font); font-size: 15px; font-weight: 700;
+  color: #141f15; cursor: pointer; letter-spacing: -0.01em;
+  transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 20px rgba(168,216,50,0.4);
+  margin-top: 8px;
+  position: relative; overflow: hidden;
+}
+.submitBtn::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.18) 50%, transparent 60%);
+  background-size: 200%;
+  animation: shimmer 4s ease infinite;
+}
+@keyframes shimmer { from{background-position:-200% 0;} to{background-position:200% 0;} }
+.submitBtn:hover  { background: #8bbf1a; transform: translateY(-1px); box-shadow: 0 6px 28px rgba(168,216,50,0.5); }
+.submitBtn:active { transform: scale(0.98); }
+.submitBtn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+.submitBtnCircle {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #141f15; color: #a8d832;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: transform 0.2s ease;
+}
+.submitBtn:hover .submitBtnCircle { transform: translateX(3px); }
+
+.spinner {
+  width: 18px; height: 18px;
+  border: 2px solid rgba(20,31,21,0.25);
+  border-top-color: #141f15;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── FORM ERROR BANNER ─────────────────────────────── */
+.errorBanner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: 10px;
+  background: rgba(224,82,82,0.08);
+  border: 1px solid rgba(224,82,82,0.25);
+  margin-bottom: 16px;
+}
+.errorBannerText { font-size: 13px; color: #c0392b; font-weight: 500; }
+
+/* ── TERMS & PRIVACY ───────────────────────────────── */
+.termsText {
+  font-size: 11px; color: #9ead9f; line-height: 1.6;
+  text-align: center; margin-top: 16px;
+}
+.termsLink { color: #2d6a35; font-weight: 600; cursor: pointer; text-decoration: underline; }
+
+
+
+
+
+
+/* ── ROLE TABS (Cards) ── */
+.roleTabs {
+  display: flex;
+  gap: 16px;
+  margin: 24px 0 20px;
+}
+
+.roleTab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  background: var(--clr-white);
+  border: 2px solid var(--clr-border);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.roleTab:hover {
+  border-color: var(--clr-lime);
+  background: var(--clr-lime-bg);
+  transform: translateY(-2px);
+  box-shadow: var(--sh-sm);
+}
+
+.roleTabActive {
+  border-color: var(--clr-lime);
+  background: var(--clr-lime-bg);
+  box-shadow: 0 0 0 3px rgba(168, 216, 50, 0.2);
+}
+
+.roleTabIcon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--clr-surface-2);
+  border-radius: 14px;
+  font-size: 26px;
+  color: var(--clr-fern);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.roleTabActive .roleTabIcon {
+  background: var(--clr-white);
+  color: var(--clr-lime);
+}
+
+.roleTabContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.roleTabLabel {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--clr-text);
+  letter-spacing: -0.01em;
+}
+
+.roleTabDesc {
+  font-size: 12px;
+  color: var(--clr-text-muted);
+  line-height: 1.4;
+}
+
+.roleTabActive .roleTabDesc {
+  color: var(--clr-fern);
+}
+
+/* Mobile responsive */
+@media (max-width: 560px) {
+  .roleTabs {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .roleTab {
+    padding: 14px 16px;
+  }
+  
+  .roleTabIcon {
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+  }
+  
+  .roleTabLabel {
+    font-size: 15px;
+  }
+  
+  .roleTabDesc {
+    font-size: 11px;
+  }
+}

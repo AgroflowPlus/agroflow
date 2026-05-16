@@ -1,0 +1,85 @@
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import authRoutes from "./routes/auth";
+import farmerRoutes from "./routes/farmers";
+import fieldRoutes from "./routes/fields";
+import alertRoutes from "./routes/alerts";
+import userRoutes from "./routes/users";
+import contentRoutes from "./routes/content";
+import listingRoutes from './routes/listings'
+import aiRoutes from "./routes/ai";
+import chatRoutes from './routes/chat'
+import roleRoutes from './routes/role'
+import buyerRoutes from './routes/buyers';
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+app.use(cors({
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true)
+    if (origin.startsWith('http://localhost:')) return callback(null, true)
+
+    const allowedOrigins = [
+      'https://ai-driven-agricultural-platform.vercel.app',
+      process.env.FARMER_APP_URL,
+      process.env.ADMIN_URL,
+    ].filter(Boolean)
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      console.log('CORS blocked:', origin)
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
+  credentials: true,
+}))
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.get("/health", (_req, res) => {
+  res.json({ status: "AgroFlow+ backend is running", timestamp: new Date() });
+});
+
+app.use("/api/auth", authRoutes);
+app.use("/api/farmers", farmerRoutes);
+app.use("/api/fields", fieldRoutes);
+app.use("/api/alerts", alertRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/content", contentRoutes);
+app.use("/api/ai", aiRoutes);
+app.use('/api/listings', listingRoutes)
+app.use('/api/chat', chatRoutes)
+app.use('/api/role', roleRoutes)
+app.use('/api/buyers', buyerRoutes);
+
+
+app.use((_req, res) => {
+  res.status(404).json({ error: "Route not found" });
+});
+
+app.use(
+  (
+    err: Error,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction,
+  ) => {
+    console.error(err.stack);
+    res
+      .status(500)
+      .json({ error: "Something went wrong", message: err.message });
+  },
+);
+
+app.listen(PORT, () => {
+  console.log(`🌱 AgroFlow+ backend running on http://localhost:${PORT}`);
+});
+
+
+export default app;
