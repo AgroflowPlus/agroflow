@@ -13,7 +13,9 @@ import chatRoutes from './routes/chat';
 import buyerRoutes from './routes/buyers';
 import roleRoutes from './routes/role';
 
-dotenv.config();
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
