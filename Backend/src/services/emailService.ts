@@ -13,6 +13,15 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// ── TRANSPORTER VERIFICATION CHECK ──────────────────────────────
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('❌ Email transporter error:', error);
+  } else {
+    console.log('✅ Email transporter ready');
+  }
+});
+
 function baseTemplate(content: string): string {
   return `
   <!DOCTYPE html>
@@ -78,52 +87,62 @@ export async function sendMatchEmailToBuyer(data: {
   distance: number;
   matchId: string;
 }) {
-  const content = `
-    <span class="tag">🎉 Match Found!</span>
-    <h2>Great news, ${data.buyerName}!</h2>
-    <p>We found a seller for your produce request on AgroFlow+. Here are the details of your match:</p>
+  try {
+    console.log('📧 Sending match email to buyer:', data.buyerEmail);
+    
+    const content = `
+      <span class="tag">🎉 Match Found!</span>
+      <h2>Great news, ${data.buyerName}!</h2>
+      <p>We found a seller for your produce request on AgroFlow+. Here are the details of your match:</p>
 
-    <div class="card">
-      <div class="card-row">
-        <span class="card-label">Crop</span>
-        <span class="card-value"> ${data.cropType}</span>
+      <div class="card">
+        <div class="card-row">
+          <span class="card-label">Crop</span>
+          <span class="card-value"> ${data.cropType}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">Quantity</span>
+          <span class="card-value"> ${data.quantity} kg</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">Seller Location</span>
+          <span class="card-value"> ${data.sellerLocation}, Akure</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">Your Location</span>
+          <span class="card-value"> ${data.buyerLocation}, Akure</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">Distance</span>
+          <span class="card-value">~${data.distance} km apart</span>
+        </div>
       </div>
-      <div class="card-row">
-        <span class="card-label">Quantity</span>
-        <span class="card-value"> ${data.quantity} kg</span>
-      </div>
-      <div class="card-row">
-        <span class="card-label">Seller Location</span>
-        <span class="card-value"> ${data.sellerLocation}, Akure</span>
-      </div>
-      <div class="card-row">
-        <span class="card-label">Your Location</span>
-        <span class="card-value"> ${data.buyerLocation}, Akure</span>
-      </div>
-      <div class="card-row">
-        <span class="card-label">Distance</span>
-        <span class="card-value">~${data.distance} km apart</span>
-      </div>
-    </div>
 
-    <div class="contact-box">
-      <p>Your matched seller:</p>
-      <p class="contact-name">${data.sellerName}</p>
-      <p style="margin-top:6px">📧 ${data.sellerEmail}${data.sellerPhone ? `<br>📞 ${data.sellerPhone}` : ""}</p>
-    </div>
+      <div class="contact-box">
+        <p>Your matched seller:</p>
+        <p class="contact-name">${data.sellerName}</p>
+        <p style="margin-top:6px">📧 ${data.sellerEmail}${data.sellerPhone ? `<br>📞 ${data.sellerPhone}` : ""}</p>
+      </div>
 
-    <div class="highlight">
-      <p>👆 Reach out to your seller directly to arrange pickup in Akure.</p>
-    </div>
+      <div class="highlight">
+        <p>👆 Reach out to your seller directly to arrange pickup in Akure.</p>
+      </div>
 
-    <p>Log in to AgroFlow+ to view your full match details, accept or decline this match.</p>
-  `;
-  await transporter.sendMail({
-    from: `"AgroFlow+ Marketplace" <${process.env.GMAIL_USER}>`,
-    to: data.buyerEmail,
-    subject: `🌽 Match Found! ${data.quantity}kg of ${data.cropType} available near you in Akure`,
-    html: baseTemplate(content),
-  });
+      <p>Log in to AgroFlow+ to view your full match details, accept or decline this match.</p>
+    `;
+    
+    await transporter.sendMail({
+      from: `"AgroFlow+ Marketplace" <${process.env.GMAIL_USER}>`,
+      to: data.buyerEmail,
+      subject: `🌽 Match Found! ${data.quantity}kg of ${data.cropType} available near you in Akure`,
+      html: baseTemplate(content),
+    });
+    
+    console.log('✅ Match email sent successfully to:', data.buyerEmail);
+  } catch (error) {
+    console.error('❌ Failed to send match email to buyer:', error);
+    throw error;
+  }
 }
 
 // ── MATCH EMAIL TO SELLER ──────────────────────────────────────
@@ -140,52 +159,62 @@ export async function sendMatchEmailToSeller(data: {
   distance: number;
   matchId: string;
 }) {
-  const content = `
-    <span class="tag">🤝 New Match!</span>
-    <h2>You've been matched, ${data.sellerName}!</h2>
-    <p>A buyer on AgroFlow+ has been matched to your produce listing. Here are the details:</p>
+  try {
+    console.log('📧 Sending match email to seller:', data.sellerEmail);
+    
+    const content = `
+      <span class="tag">🤝 New Match!</span>
+      <h2>You've been matched, ${data.sellerName}!</h2>
+      <p>A buyer on AgroFlow+ has been matched to your produce listing. Here are the details:</p>
 
-    <div class="card">
-      <div class="card-row">
-        <span class="card-label">Crop</span>
-        <span class="card-value">${data.cropType}</span>
+      <div class="card">
+        <div class="card-row">
+          <span class="card-label">Crop</span>
+          <span class="card-value">${data.cropType}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">Quantity Requested</span>
+          <span class="card-value">${data.quantity} kg</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">Buyer Location</span>
+          <span class="card-value">📍 ${data.buyerLocation}, Akure</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">Your Location</span>
+          <span class="card-value">📍 ${data.sellerLocation}, Akure</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">Distance</span>
+          <span class="card-value">~${data.distance} km apart</span>
+        </div>
       </div>
-      <div class="card-row">
-        <span class="card-label">Quantity Requested</span>
-        <span class="card-value">${data.quantity} kg</span>
-      </div>
-      <div class="card-row">
-        <span class="card-label">Buyer Location</span>
-        <span class="card-value">📍 ${data.buyerLocation}, Akure</span>
-      </div>
-      <div class="card-row">
-        <span class="card-label">Your Location</span>
-        <span class="card-value">📍 ${data.sellerLocation}, Akure</span>
-      </div>
-      <div class="card-row">
-        <span class="card-label">Distance</span>
-        <span class="card-value">~${data.distance} km apart</span>
-      </div>
-    </div>
 
-    <div class="contact-box">
-      <p>Your matched buyer:</p>
-      <p class="contact-name">${data.buyerName}</p>
-      <p style="margin-top:6px">📧 ${data.buyerEmail}${data.buyerPhone ? `<br>📞 ${data.buyerPhone}` : ""}</p>
-    </div>
+      <div class="contact-box">
+        <p>Your matched buyer:</p>
+        <p class="contact-name">${data.buyerName}</p>
+        <p style="margin-top:6px">📧 ${data.buyerEmail}${data.buyerPhone ? `<br>📞 ${data.buyerPhone}` : ""}</p>
+      </div>
 
-    <div class="highlight">
-      <p>👆 Contact your buyer directly to arrange pickup in Akure.</p>
-    </div>
+      <div class="highlight">
+        <p>👆 Contact your buyer directly to arrange pickup in Akure.</p>
+      </div>
 
-    <p>Log in to AgroFlow+ to accept or decline this match and view full details.</p>
-  `;
-  await transporter.sendMail({
-    from: `"AgroFlow+ Marketplace" <${process.env.GMAIL_USER}>`,
-    to: data.sellerEmail,
-    subject: `🛒 New Buyer Matched! Someone wants ${data.quantity}kg of your ${data.cropType}`,
-    html: baseTemplate(content),
-  });
+      <p>Log in to AgroFlow+ to accept or decline this match and view full details.</p>
+    `;
+    
+    await transporter.sendMail({
+      from: `"AgroFlow+ Marketplace" <${process.env.GMAIL_USER}>`,
+      to: data.sellerEmail,
+      subject: `🛒 New Buyer Matched! Someone wants ${data.quantity}kg of your ${data.cropType}`,
+      html: baseTemplate(content),
+    });
+    
+    console.log('✅ Match email sent successfully to:', data.sellerEmail);
+  } catch (error) {
+    console.error('❌ Failed to send match email to seller:', error);
+    throw error;
+  }
 }
 
 // ── WAITLIST EMAIL ──────────────────────────────────────
@@ -196,38 +225,48 @@ export async function sendWaitlistEmail(data: {
   quantity: number;
   location: string;
 }) {
-  const content = `
-    <span class="tag">⏳ Added to Waitlist</span>
-    <h2>You're on the waitlist, ${data.buyerName}!</h2>
-    <p>No sellers are currently available for your request, but don't worry — we've added you to the waitlist and will notify you the moment a match is found.</p>
+  try {
+    console.log('📧 Sending waitlist email to:', data.buyerEmail);
+    
+    const content = `
+      <span class="tag">⏳ Added to Waitlist</span>
+      <h2>You're on the waitlist, ${data.buyerName}!</h2>
+      <p>No sellers are currently available for your request, but don't worry — we've added you to the waitlist and will notify you the moment a match is found.</p>
 
-    <div class="card">
-      <div class="card-row">
-        <span class="card-label">Crop Needed</span>
-        <span class="card-value">${data.cropType}</span>
+      <div class="card">
+        <div class="card-row">
+          <span class="card-label">Crop Needed</span>
+          <span class="card-value">${data.cropType}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">Quantity</span>
+          <span class="card-value">${data.quantity} kg</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">Your Location</span>
+          <span class="card-value">📍 ${data.location}, Akure</span>
+        </div>
       </div>
-      <div class="card-row">
-        <span class="card-label">Quantity</span>
-        <span class="card-value">${data.quantity} kg</span>
-      </div>
-      <div class="card-row">
-        <span class="card-label">Your Location</span>
-        <span class="card-value">📍 ${data.location}, Akure</span>
-      </div>
-    </div>
 
-    <div class="highlight">
-      <p>We'll email you immediately when a seller posts matching produce near you.</p>
-    </div>
+      <div class="highlight">
+        <p>We'll email you immediately when a seller posts matching produce near you.</p>
+      </div>
 
-    <p>You can also browse the AgroFlow+ marketplace manually and send a request directly to any available seller.</p>
-  `;
-  await transporter.sendMail({
-    from: `"AgroFlow+ Marketplace" <${process.env.GMAIL_USER}>`,
-    to: data.buyerEmail,
-    subject: `⏳ Waitlist Confirmed — We'll find you ${data.cropType} in Akure`,
-    html: baseTemplate(content),
-  });
+      <p>You can also browse the AgroFlow+ marketplace manually and send a request directly to any available seller.</p>
+    `;
+    
+    await transporter.sendMail({
+      from: `"AgroFlow+ Marketplace" <${process.env.GMAIL_USER}>`,
+      to: data.buyerEmail,
+      subject: `⏳ Waitlist Confirmed — We'll find you ${data.cropType} in Akure`,
+      html: baseTemplate(content),
+    });
+    
+    console.log('✅ Waitlist email sent successfully to:', data.buyerEmail);
+  } catch (error) {
+    console.error('❌ Failed to send waitlist email:', error);
+    throw error;
+  }
 }
 
 // ── REQUEST NOTIFICATION EMAIL TO SELLER ──────────────────────────────────────
@@ -240,43 +279,53 @@ export async function sendRequestEmailToSeller(data: {
   quantity: number;
   message?: string;
 }) {
-  const content = `
-    <span class="tag">📬 New Request</span>
-    <h2>New purchase request, ${data.sellerName}!</h2>
-    <p>A buyer on AgroFlow+ wants to purchase your produce. Log in to accept or decline.</p>
+  try {
+    console.log('📧 Sending request email to seller:', data.sellerEmail);
+    
+    const content = `
+      <span class="tag">📬 New Request</span>
+      <h2>New purchase request, ${data.sellerName}!</h2>
+      <p>A buyer on AgroFlow+ wants to purchase your produce. Log in to accept or decline.</p>
 
-    <div class="card">
-      <div class="card-row">
-        <span class="card-label">Buyer</span>
-        <span class="card-value">${data.buyerName}</span>
+      <div class="card">
+        <div class="card-row">
+          <span class="card-label">Buyer</span>
+          <span class="card-value">${data.buyerName}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">Crop</span>
+          <span class="card-value">${data.cropType}</span>
+        </div>
+        <div class="card-row">
+          <span class="card-label">Quantity</span>
+          <span class="card-value">${data.quantity} kg</span>
+        </div>
+        ${
+          data.message
+            ? `
+        <div class="card-row">
+          <span class="card-label">Message</span>
+          <span class="card-value">"${data.message}"</span>
+        </div>`
+            : ""
+        }
       </div>
-      <div class="card-row">
-        <span class="card-label">Crop</span>
-        <span class="card-value">${data.cropType}</span>
-      </div>
-      <div class="card-row">
-        <span class="card-label">Quantity</span>
-        <span class="card-value">${data.quantity} kg</span>
-      </div>
-      ${
-        data.message
-          ? `
-      <div class="card-row">
-        <span class="card-label">Message</span>
-        <span class="card-value">"${data.message}"</span>
-      </div>`
-          : ""
-      }
-    </div>
 
-    <div class="highlight">
-      <p>Log in to AgroFlow+ to accept or decline this request.</p>
-    </div>
-  `;
-  await transporter.sendMail({
-    from: `"AgroFlow+ Marketplace" <${process.env.GMAIL_USER}>`,
-    to: data.sellerEmail,
-    subject: `📬 New Request: ${data.buyerName} wants ${data.quantity}kg of your ${data.cropType}`,
-    html: baseTemplate(content),
-  });
+      <div class="highlight">
+        <p>Log in to AgroFlow+ to accept or decline this request.</p>
+      </div>
+    `;
+    
+    await transporter.sendMail({
+      from: `"AgroFlow+ Marketplace" <${process.env.GMAIL_USER}>`,
+      to: data.sellerEmail,
+      subject: `📬 New Request: ${data.buyerName} wants ${data.quantity}kg of your ${data.cropType}`,
+      html: baseTemplate(content),
+    });
+    
+    console.log('✅ Request email sent successfully to:', data.sellerEmail);
+  } catch (error) {
+    console.error('❌ Failed to send request email to seller:', error);
+    throw error;
+  }
 }
