@@ -1,0 +1,392 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  RiLeafFill,
+  RiChatCheckLine,
+  RiUserLine,
+  RiSettings4Line,
+  RiLogoutBoxRLine,
+  RiStore3Line,
+  RiShoppingBagLine,
+  RiCheckDoubleLine,
+  RiBellLine,
+} from "react-icons/ri";
+import { MdOutlineMenu, MdClose } from "react-icons/md";
+import { FaStore } from "react-icons/fa";
+import {
+  marketService,
+  type Listing,
+  type Match,
+  type Notification,
+  type Request,
+} from "../../services/marketService";
+import { authService } from "../../services/authService";
+import { useToast } from "../../context/ToastContext";
+import { ConfirmModal } from "../../components/ConfirmModal/ConfirmModal";
+import { SectionMyStore } from "../BuyerSellerDashboard/sections/SectionMyStore";
+import { SectionMatches } from "../BuyerSellerDashboard/sections/SectionMatches";
+import { SectionRequests } from "../BuyerSellerDashboard/sections/SectionRequests";
+import { SectionNotifications } from "../BuyerSellerDashboard/sections/SectionNotifications";
+import { SectionSettings } from "../BuyerSellerDashboard/sections/SectionSettings";
+import { SectionPostListing } from "../BuyerSellerDashboard/sections/SectionPostListing";
+import FloatingAI from "../../components/FloatingAI/FloatingAI";
+import styles from "../BuyerSellerDashboard/BuyerSellerDashboard.module.css";
+
+type Section =
+  | "myStore"
+  | "sell"
+  | "requests"
+  | "matches"
+  | "notifications"
+  | "settings";
+
+export default function SellerDashboard() {
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+  const [user, setUser] = useState(
+    authService.getUser() ?? {
+      id: "mock-001",
+      name: "Seller User",
+      email: "seller@test.com",
+      role: "seller",
+      phone: "+234 801 234 5678",
+      location: "Ijapo Estate, Akure",
+      avatar: null,
+    },
+  );
+
+  const initials =
+    user.name
+      ?.split(" ")
+      .map((n: string) => n[0])
+      .join("")
+      .toUpperCase() ?? "SE";
+  const [section, setSection] = useState<Section>("myStore");
+  const [sidebarOpen, setSidebar] = useState(false);
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [notifs, setNotifs] = useState<Notification[]>([]);
+  const [myListings, setMyListings] = useState<Listing[]>([]);
+  const [myRequests, setMyRequests] = useState<Request[]>([]);
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean;
+    type: "delete" | "accept" | "reject";
+    data?: any;
+  }>({ show: false, type: "delete" });
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  async function refresh() {
+    try {
+      const [matchesData, myListingsData] = await Promise.all([
+        marketService.getMatches(),
+        marketService.getListingsBySeller(),
+      ]);
+      setMatches(matchesData);
+      setMyListings(myListingsData);
+      setNotifs(marketService.getNotifications(user.id));
+      setMyRequests([]);
+    } catch (err) {
+      console.error("Refresh error:", err);
+      addToast("Failed to refresh data", "error");
+    }
+  }
+
+  const unread = notifs.filter((n) => !n.read).length;
+
+  const handleAcceptRequest = async (request: Request) => {
+    setConfirmModal({ show: true, type: "accept", data: request });
+  };
+
+  const handleRejectRequest = async (request: Request) => {
+    setConfirmModal({ show: true, type: "reject", data: request });
+  };
+
+  const handleLogout = () => setShowLogoutConfirm(true);
+  const confirmLogout = () => {
+    authService.clearSession();
+    navigate("/login");
+    addToast("Logged out successfully", "success");
+  };
+
+  const sidebarNavItems: {
+    id: Section;
+    label: string;
+    icon: React.ReactNode;
+    badge?: number;
+  }[] = [
+    {
+      id: "myStore",
+      label: "My Store",
+      icon: <FaStore size={15} />,
+      badge: myListings.length,
+    },
+    {
+      id: "sell",
+      label: "List Produce",
+      icon: <RiShoppingBagLine size={15} />,
+    },
+    {
+      id: "requests",
+      label: "Requests",
+      icon: <RiChatCheckLine size={15} />,
+      badge: myRequests.filter((r) => r.status === "pending").length,
+    },
+    {
+      id: "matches",
+      label: "My Matches",
+      icon: <RiCheckDoubleLine size={16} />,
+      badge: matches.length,
+    },
+    {
+      id: "notifications",
+      label: "Notifications",
+      icon: <RiBellLine size={15} />,
+      badge: unread,
+    },
+    { id: "settings", label: "Settings", icon: <RiSettings4Line size={17} /> },
+  ];
+
+  const bottomNavItems: {
+    id: Section;
+    label: string;
+    icon: React.ReactNode;
+    badge?: number;
+  }[] = [
+    {
+      id: "myStore",
+      label: "Store",
+      icon: <FaStore size={20} />,
+      badge: myListings.length,
+    },
+    { id: "sell", label: "Sell", icon: <RiShoppingBagLine size={20} /> },
+    {
+      id: "requests",
+      label: "Requests",
+      icon: <RiChatCheckLine size={20} />,
+      badge: myRequests.filter((r) => r.status === "pending").length,
+    },
+    { id: "settings", label: "Settings", icon: <RiSettings4Line size={20} /> },
+  ];
+
+  return (
+    <>
+      <div className={styles.shell}>
+        <ConfirmModal
+          isOpen={confirmModal.show}
+          title={
+            confirmModal.type === "accept" ? "Accept Request" : "Reject Request"
+          }
+          message={
+            confirmModal.type === "accept"
+              ? "Are you sure you want to accept this request?"
+              : "Are you sure you want to reject this request?"
+          }
+          onConfirm={async () => {
+            if (confirmModal.type === "accept" && confirmModal.data) {
+              const result = await marketService.acceptRequest(
+                confirmModal.data.id,
+                user.location,
+              );
+              if (result.success) {
+                addToast("Request accepted successfully!", "success");
+                refresh();
+              } else {
+                addToast(result.error || "Failed to accept request", "error");
+              }
+            } else if (confirmModal.type === "reject" && confirmModal.data) {
+              await marketService.rejectRequest(confirmModal.data.id);
+              addToast("Request rejected", "info");
+              refresh();
+            }
+            setConfirmModal({ show: false, type: "delete" });
+          }}
+          onCancel={() => setConfirmModal({ show: false, type: "delete" })}
+        />
+
+        <ConfirmModal
+          isOpen={showLogoutConfirm}
+          title="Logout"
+          message="Are you sure you want to log out? You will need to login again to access your account."
+          onConfirm={confirmLogout}
+          onCancel={() => setShowLogoutConfirm(false)}
+        />
+
+        <div
+          className={`${styles.overlay} ${sidebarOpen ? styles.overlayVisible : ""}`}
+          onClick={() => setSidebar(false)}
+        />
+
+        {/* Sidebar */}
+        <aside
+          className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ""}`}
+        >
+          <div className={styles.sidebarTop}>
+            <div className={styles.logoRow}>
+              <div className={styles.logoMark}>
+                <RiLeafFill size={16} />
+              </div>
+              <span className={styles.logoText}>
+                AgroFlow<span>+</span>
+              </span>
+            </div>
+            <div className={styles.profileRow}>
+              <div className={styles.profileAvatar}>{initials}</div>
+              <div className={styles.profileInfo}>
+                <div className={styles.profileName}>{user.name}</div>
+                <div className={styles.profileRole}>
+                  <RiStore3Line size={10} /> Seller
+                </div>
+              </div>
+            </div>
+          </div>
+          <nav className={styles.sidebarNav}>
+            <div className={styles.navLabel}>NAVIGATION</div>
+            {sidebarNavItems.map((item) => (
+              <button
+                key={item.id}
+                className={`${styles.navItem} ${section === item.id ? styles.navItemActive : ""}`}
+                onClick={() => {
+                  setSection(item.id);
+                  setSidebar(false);
+                }}
+              >
+                <div className={styles.navIcon}>{item.icon}</div>
+                <span className={styles.navText}>{item.label}</span>
+                {item.badge && item.badge > 0 && (
+                  <span className={styles.navBadgeGreen}>{item.badge}</span>
+                )}
+              </button>
+            ))}
+          </nav>
+          <div className={styles.sidebarBottom}>
+            <button
+              className={`${styles.sidebarBtn} ${styles.sidebarBtnDanger}`}
+              onClick={handleLogout}
+            >
+              <RiLogoutBoxRLine size={15} /> Log Out
+            </button>
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <div className={styles.main}>
+          <div className={styles.topbar}>
+            <div className={styles.topbarLeft}>
+              <button
+                className={styles.menuBtn}
+                onClick={() => setSidebar((p) => !p)}
+              >
+                {sidebarOpen ? (
+                  <MdClose size={17} />
+                ) : (
+                  <MdOutlineMenu size={17} />
+                )}
+              </button>
+              <div className={styles.roleBadge}>
+                <span className={styles.sellerBadge}> Seller Mode</span>
+              </div>
+            </div>
+            <div style={{ width: 40 }}></div>
+
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <FloatingAI navbarMode={true} />
+            </div>
+
+            <div className={styles.topbarRight}>
+              <button
+                className={styles.topbarIconBtn}
+                onClick={() => setSection("notifications")}
+              >
+                <RiBellLine size={15} />
+                {unread > 0 && <div className={styles.notifBadge} />}
+              </button>
+              <div className={styles.topbarIconBtn}>
+                <RiUserLine size={15} />
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.content}>
+            {section === "myStore" && (
+              <SectionMyStore listings={myListings} onRefresh={refresh} />
+            )}
+            {section === "sell" && (
+              <SectionPostListing
+                user={user}
+                onSuccess={() => {
+                  refresh();
+                  setSection("myStore");
+                  addToast("Listing posted successfully!", "success");
+                }}
+              />
+            )}
+            {section === "requests" && (
+              <SectionRequests
+                requests={myRequests}
+                onAccept={handleAcceptRequest}
+                onReject={handleRejectRequest}
+              />
+            )}
+            {section === "matches" && (
+              <SectionMatches matches={matches} userId={user.id} />
+            )}
+            {section === "notifications" && (
+              <SectionNotifications
+                notifs={notifs}
+                onMarkAll={() => {
+                  marketService.markAllRead(user.id);
+                  refresh();
+                  addToast("All notifications marked as read", "info");
+                }}
+              />
+            )}
+            {section === "settings" && (
+              <SectionSettings
+                user={user}
+                onUpdate={(updatedUser) => {
+                  setUser(updatedUser);
+                  refresh();
+                  addToast("Profile updated successfully!", "success");
+                }}
+              />
+            )}
+          </div>
+
+          <div className={styles.bottomNav}>
+            <div className={styles.bottomNavItems}>
+              {bottomNavItems.map((item) => (
+                <button
+                  key={item.id}
+                  className={`${styles.bottomNavItem} ${section === item.id ? styles.bottomNavItemActive : ""}`}
+                  onClick={() => setSection(item.id)}
+                >
+                  <div className={styles.bottomNavIcon}>
+                    {item.icon}
+                    {item.badge && item.badge > 0 && (
+                      <span className={styles.bottomNavBadge}>
+                        {item.badge > 99 ? "99+" : item.badge}
+                      </span>
+                    )}
+                  </div>
+                  <span className={styles.bottomNavLabel}>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <FloatingAI />
+    </>
+  );
+}

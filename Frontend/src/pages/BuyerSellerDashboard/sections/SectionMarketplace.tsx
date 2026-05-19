@@ -12,6 +12,7 @@ interface SectionMarketplaceProps {
   onRequestToBuy: (l: Listing) => void;
 }
 
+
 export function SectionMarketplace({
   listings,
   cropFilter,

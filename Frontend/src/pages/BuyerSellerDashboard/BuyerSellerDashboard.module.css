@@ -2289,3 +2289,89 @@ input:checked + .slider:before {
   background: var(--clr-lime);
   color: white;
 }
+
+
+
+.roleBadge {
+  margin-left: 8px;
+}
+
+.buyerBadge, .sellerBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.buyerBadge {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.sellerBadge {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .topbar {
+    padding: 10px 16px;
+  }
+  
+  .menuBtn {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .roleBadge {
+    margin-left: 4px;
+  }
+  
+  .buyerBadge, .sellerBadge {
+    padding: 4px 10px;
+    font-size: 11px;
+    gap: 4px;
+  }
+  
+  /* Hide text on very small screens, keep only icon */
+  @media (max-width: 480px) {
+    .badgeText {
+      display: none;
+    }
+    
+    .buyerBadge, .sellerBadge {
+      padding: 6px 8px;
+    }
+  }
+}
+
+/* For the topbar right icons */
+.topbarRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbarIconBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--clr-surface-2);
+  cursor: pointer;
+  position: relative;
+}
+
+@media (max-width: 768px) {
+  .topbarIconBtn {
+    width: 32px;
+    height: 32px;
+  }
+}

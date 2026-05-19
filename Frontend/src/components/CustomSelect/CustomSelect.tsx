@@ -1,4 +1,4 @@
-// frontend/src/components/CustomSelect/CustomSelect.tsx
+
 import { useState, useRef, useEffect } from 'react'
 import { MdExpandMore } from 'react-icons/md'
 import styles from './CustomSelect.module.css'

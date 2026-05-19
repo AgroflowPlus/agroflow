@@ -48,12 +48,17 @@ router.post('/register', async (req: Request, res: Response) => {
       },
     })
 
+    // Create role-specific profiles
     if (role === 'farmer') {
       await prisma.farmer.create({
         data: {
           userId:   user.id,
           location: location || '',
         },
+      })
+      // ALSO create seller profile for farmers (so they can sell produce)
+      await prisma.seller.create({
+        data: { userId: user.id }
       })
     } else if (role === 'buyer') {
       await prisma.buyer.create({ data: { userId: user.id } })

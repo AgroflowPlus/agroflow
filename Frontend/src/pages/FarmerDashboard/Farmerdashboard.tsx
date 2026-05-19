@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {RiStore3Line, RiLeafFill, RiRobot2Fill } from "react-icons/ri";
+import { RiStore3Line, RiLeafFill, RiRobot2Fill } from "react-icons/ri";
 import { BsPerson, BsPencilSquare } from "react-icons/bs";
 import {
   MdOutlineLogout,
   MdSend,
   MdOutlineMenu,
   MdClose,
-  MdSwapHoriz,
   MdDeleteOutline,
 } from "react-icons/md";
 import { GiWheat, GiWateringCan } from "react-icons/gi";
@@ -202,8 +201,9 @@ export default function FarmerChat() {
     setShowChoiceModal(false);
 
     if (choice === "sell") {
-      navigate("/buyer");
-      addToast("Switch to Seller mode to post your produce!", "info");
+      // Navigate to Seller dashboard (same as BuyerSellerDashboard but with seller view)
+      navigate("/seller");
+      addToast("Welcome to Seller Mode! List your produce here.", "success");
     } else {
       // Stay on AI chat page
       addToast("Ask me anything about your crops!", "success");
@@ -309,14 +309,6 @@ export default function FarmerChat() {
     }
   };
 
-  const switchToBuyerSeller = async () => {
-    try {
-      navigate("/buyer");
-    } catch (error) {
-      addToast("Failed to switch role", "error");
-    }
-  };
-
   const handleLogout = () => {
     setShowLogoutConfirm(true);
   };
@@ -333,9 +325,13 @@ export default function FarmerChat() {
     return <PageLoader />;
   }
 
+  const switchToSeller = () => {
+  navigate("/seller");
+  addToast("Switched to Seller Mode", "success");
+};
+
   return (
     <div className={styles.shell}>
-      {/* Farmer Choice Modal */}
       {/* Farmer Choice Modal */}
       {showChoiceModal && (
         <div className={styles.choiceModalOverlay}>
@@ -353,7 +349,7 @@ export default function FarmerChat() {
             </div>
 
             <div className={styles.choiceModalOptions}>
-              {/* Sell Option - using Store icon instead of maize */}
+              {/* Sell Option */}
               <button
                 className={styles.choiceOption}
                 onClick={() => handleFarmerChoice("sell")}
@@ -368,7 +364,7 @@ export default function FarmerChat() {
                 <div className={styles.choiceOptionArrow}>→</div>
               </button>
 
-              {/* AI Option - using your existing Robot icon */}
+              {/* AI Option */}
               <button
                 className={styles.choiceOption}
                 onClick={() => handleFarmerChoice("ai")}
@@ -467,13 +463,17 @@ export default function FarmerChat() {
           </div>
         </div>
 
+        <div className={styles.switchBox}>
+  <div className={styles.switchLbl}>Switch Mode</div>
+  <button className={styles.switchBtn} onClick={switchToSeller}>
+    <RiStore3Line size={14} /> Go to Seller Mode
+  </button>
+</div>
+
+<div className={styles.sidebarDivider} />
+
         <div className={styles.sidebarBottom}>
-          <div className={styles.switchBox}>
-            <div className={styles.switchLbl}>Switch Role</div>
-            <button className={styles.switchBtn} onClick={switchToBuyerSeller}>
-              <MdSwapHoriz size={14} /> Switch to Buyer / Seller
-            </button>
-          </div>
+          {/* REMOVED: Switch Role button - Farmers stay as farmers */}
 
           <div className={styles.sidebarDivider} />
 
