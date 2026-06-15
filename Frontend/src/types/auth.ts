@@ -6,6 +6,7 @@ export interface RegisterPayload {
   phone:    string
   password: string
   role:     'farmer' | 'buyer' | 'seller'
+  location?: string 
   intent?:  'buy' | 'sell'
 }
 
@@ -17,10 +18,12 @@ export interface LoginPayload {
 export interface AuthResponse {
   token: string
   user: {
-    id:    string
-    name:  string
-    email: string
-    role:  UserRole
+    id:       string
+    name:     string
+    email:    string
+    role:     UserRole
+    location?: string  
+    phone?:   string
   }
 }
 

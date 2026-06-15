@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { RiMapPinLine } from "react-icons/ri";
 import { GiFarmer } from "react-icons/gi";
 import { CROP_ICON, CROP_CSS, getImageFallback } from "../constants";
@@ -8,11 +9,38 @@ interface ListingCardProps {
   listing: Listing;
   intent: "buy" | "sell";
   onRequestToBuy: (listing: Listing) => void;
+  onClick?: (listing: Listing) => void;
 }
 
-export function ListingCard({ listing, intent, onRequestToBuy }: ListingCardProps) {
+export function ListingCard({ listing, intent, onRequestToBuy, onClick }: ListingCardProps) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const handleCardClick = () => {
+    // Only trigger on mobile devices
+    if (isMobile && onClick) {
+      onClick(listing);
+    }
+  };
+
+  const handleRequestClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRequestToBuy(listing);
+  };
+
   return (
-    <div className={styles.marketplaceCard}>
+    <div 
+      className={`${styles.marketplaceCard} ${isMobile ? styles.clickable : ''}`} 
+      onClick={handleCardClick}
+    >
       <div className={styles.cardPhoto}>
         {listing.photoUrl ? (
           <img
@@ -77,7 +105,7 @@ export function ListingCard({ listing, intent, onRequestToBuy }: ListingCardProp
         {intent === "buy" && listing.status !== "sold" && (
           <button
             className={styles.requestBtn}
-            onClick={() => onRequestToBuy(listing)}
+            onClick={handleRequestClick}
           >
             Request to Buy
           </button>

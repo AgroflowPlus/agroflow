@@ -61,7 +61,12 @@ router.post('/register', async (req: Request, res: Response) => {
         data: { userId: user.id }
       })
     } else if (role === 'buyer') {
-      await prisma.buyer.create({ data: { userId: user.id } })
+      await prisma.buyer.create({ 
+        data: { 
+          userId: user.id,
+          preferredLocation: location || null  // Store location in buyer profile too
+        } 
+      })
     } else if (role === 'seller') {
       await prisma.seller.create({ data: { userId: user.id } })
     }
@@ -81,6 +86,7 @@ router.post('/register', async (req: Request, res: Response) => {
         email:    user.email,
         role:     user.role,
         location: user.location,
+        phone:    user.phone,
       },
     })
   } catch (error) {

@@ -9,16 +9,16 @@ const transporter = nodemailer.createTransport({
     pass: process.env.GMAIL_APP_PASSWORD,
   },
   tls: {
-    rejectUnauthorized: false, 
+    rejectUnauthorized: false,
   },
 });
 
 // ── TRANSPORTER VERIFICATION CHECK ──────────────────────────────
 transporter.verify((error, success) => {
   if (error) {
-    console.error('❌ Email transporter error:', error);
+    console.error("❌ Email transporter error:", error);
   } else {
-    console.log('✅ Email transporter ready');
+    console.log("✅ Email transporter ready");
   }
 });
 
@@ -88,8 +88,6 @@ export async function sendMatchEmailToBuyer(data: {
   matchId: string;
 }) {
   try {
-    console.log('📧 Sending match email to buyer:', data.buyerEmail);
-    
     const content = `
       <span class="tag">🎉 Match Found!</span>
       <h2>Great news, ${data.buyerName}!</h2>
@@ -137,10 +135,8 @@ export async function sendMatchEmailToBuyer(data: {
       subject: `🌽 Match Found! ${data.quantity}kg of ${data.cropType} available near you in Akure`,
       html: baseTemplate(content),
     });
-    
-    console.log('✅ Match email sent successfully to:', data.buyerEmail);
   } catch (error) {
-    console.error('❌ Failed to send match email to buyer:', error);
+    console.error("❌ Failed to send match email to buyer:", error);
     throw error;
   }
 }
@@ -160,8 +156,6 @@ export async function sendMatchEmailToSeller(data: {
   matchId: string;
 }) {
   try {
-    console.log('📧 Sending match email to seller:', data.sellerEmail);
-    
     const content = `
       <span class="tag">🤝 New Match!</span>
       <h2>You've been matched, ${data.sellerName}!</h2>
@@ -209,10 +203,8 @@ export async function sendMatchEmailToSeller(data: {
       subject: `🛒 New Buyer Matched! Someone wants ${data.quantity}kg of your ${data.cropType}`,
       html: baseTemplate(content),
     });
-    
-    console.log('✅ Match email sent successfully to:', data.sellerEmail);
   } catch (error) {
-    console.error('❌ Failed to send match email to seller:', error);
+    console.error("❌ Failed to send match email to seller:", error);
     throw error;
   }
 }
@@ -226,8 +218,6 @@ export async function sendWaitlistEmail(data: {
   location: string;
 }) {
   try {
-    console.log('📧 Sending waitlist email to:', data.buyerEmail);
-    
     const content = `
       <span class="tag">⏳ Added to Waitlist</span>
       <h2>You're on the waitlist, ${data.buyerName}!</h2>
@@ -261,10 +251,8 @@ export async function sendWaitlistEmail(data: {
       subject: `⏳ Waitlist Confirmed — We'll find you ${data.cropType} in Akure`,
       html: baseTemplate(content),
     });
-    
-    console.log('✅ Waitlist email sent successfully to:', data.buyerEmail);
   } catch (error) {
-    console.error('❌ Failed to send waitlist email:', error);
+    console.error("❌ Failed to send waitlist email:", error);
     throw error;
   }
 }
@@ -280,8 +268,6 @@ export async function sendRequestEmailToSeller(data: {
   message?: string;
 }) {
   try {
-    console.log('📧 Sending request email to seller:', data.sellerEmail);
-    
     const content = `
       <span class="tag">📬 New Request</span>
       <h2>New purchase request, ${data.sellerName}!</h2>
@@ -322,10 +308,8 @@ export async function sendRequestEmailToSeller(data: {
       subject: `📬 New Request: ${data.buyerName} wants ${data.quantity}kg of your ${data.cropType}`,
       html: baseTemplate(content),
     });
-    
-    console.log('✅ Request email sent successfully to:', data.sellerEmail);
   } catch (error) {
-    console.error('❌ Failed to send request email to seller:', error);
+    console.error("❌ Failed to send request email to seller:", error);
     throw error;
   }
 }

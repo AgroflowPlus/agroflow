@@ -14,6 +14,7 @@ import {
   RiSendPlaneLine,
   RiMailSendLine,
   RiHomeSmileLine,
+  RiRobot2Fill,
 } from "react-icons/ri";
 import { MdOutlineMenu, MdClose } from "react-icons/md";
 import { FaSeedling } from "react-icons/fa";
@@ -28,14 +29,16 @@ import {
 import { authService } from "../../services/authService";
 import { useToast } from "../../context/ToastContext";
 import { ConfirmModal } from "../../components/ConfirmModal/ConfirmModal";
+import { ListingDetailModal } from "../../components/ListingDetailModal/ListingDetailModal";
 import { SectionMarketplace } from "../BuyerSellerDashboard/sections/SectionMarketplace";
 import { SectionMatches } from "../BuyerSellerDashboard/sections/SectionMatches";
 import { SectionWaitlist } from "../BuyerSellerDashboard/sections/SectionWaitlist";
 import { SectionNotifications } from "../BuyerSellerDashboard/sections/SectionNotifications";
 import { SectionSettings } from "../BuyerSellerDashboard/sections/SectionSettings";
 import { SectionPostDemand } from "../BuyerSellerDashboard/sections/SectionPostDemand";
+import { ListingCard } from "../BuyerSellerDashboard/components/ListingCard";
 import { CROP_ICON } from "../BuyerSellerDashboard/constants";
-import styles from "../BuyerSellerDashboard/BuyerSellerDashboard.module.css";
+import styles from "./BuyerSellerDashboard.module.css";
 
 type Section =
   | "marketplace"
@@ -44,8 +47,6 @@ type Section =
   | "waitlist"
   | "notifications"
   | "settings";
-
-// const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
 export default function BuyerDashboard() {
   const navigate = useNavigate();
@@ -75,6 +76,7 @@ export default function BuyerDashboard() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [waitlist, setWaitlist] = useState<Demand[]>([]);
   const [notifs, setNotifs] = useState<Notification[]>([]);
+  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [showRequestModal, setShowRequestModal] = useState<{
     listing: Listing;
   } | null>(null);
@@ -91,8 +93,22 @@ export default function BuyerDashboard() {
   }>({ show: false, type: "delete" });
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
+// AI Recommendations State
+const [aiRecommendations, setAIRecommendations] = useState<any[]>([]);
+const [showAIRecommendations, setShowAIRecommendations] = useState(true);
+const [showAllRecommendations, setShowAllRecommendations] = useState(false);
+const [isMobile, setIsMobile] = useState<boolean>(false);
+
+useEffect(() => {
+  const check = (): void => setIsMobile(window.innerWidth <= 768);
+  check();
+  window.addEventListener("resize", check);
+  return () => window.removeEventListener("resize", check);
+}, []);
+  
   useEffect(() => {
     refresh();
+    loadAIRecommendations();
   }, []);
 
   async function refresh() {
@@ -112,12 +128,27 @@ export default function BuyerDashboard() {
     }
   }
 
+  const loadAIRecommendations = async () => {
+    try {
+      const recommendations = await marketService.getAIRecommendations();
+      if (recommendations && recommendations.length > 0) {
+        setAIRecommendations(recommendations);
+      }
+    } catch (error) {
+      console.error("Error loading recommendations:", error);
+    }
+  };
+
   const unread = notifs.filter((n) => !n.read).length;
 
   const handleRequestToBuy = (listing: Listing) => {
     setShowRequestModal({ listing });
     setRequestQty("");
     setRequestMsg("");
+  };
+
+  const handleListingClick = (listing: Listing) => {
+    setSelectedListing(listing);
   };
 
   const submitRequest = async () => {
@@ -159,6 +190,26 @@ export default function BuyerDashboard() {
       (cropFilter === "All" || l.cropType === cropFilter) &&
       l.status !== "sold",
   );
+
+  // Convert AI recommendations to Listing format for ListingCard
+  const aiListings: Listing[] = aiRecommendations.map((rec) => ({
+    id: rec.listingId,
+    sellerId: rec.sellerId,
+    sellerName: rec.sellerName,
+    sellerEmail: "",
+    sellerPhone: "",
+    cropType: rec.cropType,
+    quantity: rec.quantity,
+    remainingQty: rec.quantity,
+    location: rec.location,
+    description: "",
+    photoUrl: undefined,
+    status: "available",
+    createdAt: new Date().toISOString(),
+    distance: rec.distance,
+  }));
+
+  const initialCount: number = isMobile ? 2 : 3;
 
   const sidebarNavItems: {
     id: Section;
@@ -215,10 +266,12 @@ export default function BuyerDashboard() {
     { id: "settings", label: "Settings", icon: <RiSettings4Line size={20} /> },
   ];
 
+  const visibleRecommendations = showAllRecommendations
+    ? aiListings
+    : aiListings.slice(0, initialCount);
+
   return (
     <div className={styles.shell}>
-      {/* BuyerOnboardingModal is disabled for now */}
-
       <ConfirmModal
         isOpen={confirmModal.show}
         title="Confirm"
@@ -402,6 +455,16 @@ export default function BuyerDashboard() {
         </div>
       )}
 
+      {/* Listing Detail Modal */}
+      {selectedListing && (
+        <ListingDetailModal
+          listing={selectedListing}
+          isOpen={!!selectedListing}
+          onClose={() => setSelectedListing(null)}
+          onRequestToBuy={handleRequestToBuy}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
         className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ""}`}
@@ -446,6 +509,15 @@ export default function BuyerDashboard() {
         </nav>
         <div className={styles.sidebarBottom}>
           <button
+            className={styles.sidebarBtn}
+            onClick={() => {
+              setSection("settings");
+              setSidebar(false);
+            }}
+          >
+            <RiSettings4Line size={15} /> Settings
+          </button>
+          <button
             className={`${styles.sidebarBtn} ${styles.sidebarBtnDanger}`}
             onClick={handleLogout}
           >
@@ -469,7 +541,7 @@ export default function BuyerDashboard() {
               )}
             </button>
             <div className={styles.roleBadge}>
-              <span className={styles.buyerBadge}> Buyer Mode</span>
+              <span className={styles.buyerBadge}>Buyer Mode</span>
             </div>
           </div>
           <div style={{ width: 40 }}></div>
@@ -489,14 +561,98 @@ export default function BuyerDashboard() {
 
         <div className={styles.content}>
           {section === "marketplace" && (
-            <SectionMarketplace
-              listings={filteredListings}
-              cropFilter={cropFilter}
-              setCropFilter={setCropFilter}
-              intent="buy"
-              onRequestToBuy={handleRequestToBuy}
-            />
+            <>
+  {/* AI RECOMMENDATIONS SECTION */}
+  {showAIRecommendations && aiListings.length > 0 && (
+    <div className={styles.aiRecommendationsSection}>
+      <div className={styles.aiSectionHeader}>
+        <div className={styles.aiHeaderLeft}>
+          <div className={styles.aiIcon}>
+            <RiRobot2Fill size={28} color="#2d6a35" />
+          </div>
+          <div>
+            <h3 className={styles.aiTitle}>
+              AI-Powered Recommendations
+            </h3>
+            <p className={styles.aiSubtitle}>
+              {aiRecommendations.length > 0 &&
+              aiRecommendations[0]?.isNewUserRecommendation
+                ? `Based on your location in ${user.location || "Akure"}`
+                : `Based on your purchase history and preferences`}
+            </p>
+          </div>
+        </div>
+        <button
+          className={styles.aiDismissBtn}
+          onClick={() => setShowAIRecommendations(false)}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Cards */}
+      <div className={styles.marketplaceGrid}>
+        {visibleRecommendations.map((listing, index) => {
+          const rec = aiRecommendations[index];
+          return (
+            <div key={listing.id} className={styles.aiCardWrapper}>
+              {rec && (
+                <>
+                  <div className={styles.aiScoreBadge}>
+                    {rec.score}% Match
+                  </div>
+                  <div className={styles.aiImageOverlay}>
+                    <div className={styles.aiReasons}>
+                      {rec.reasons
+                        ?.slice(0, 2)
+                        .map((reason: string, idx: number) => (
+                          <span key={idx} className={styles.aiReason}>
+                            ✓ {reason}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                </>
+              )}
+              <ListingCard
+                listing={listing}
+                intent="buy"
+                onRequestToBuy={handleRequestToBuy}
+                onClick={handleListingClick}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Show More / Show Less */}
+      {aiListings.length > initialCount && (
+        <div className={styles.showMoreContainer}>
+          <button
+            className={styles.showMoreBtn}
+            onClick={() => setShowAllRecommendations(!showAllRecommendations)}
+          >
+            {showAllRecommendations
+              ? "Show Less ↑"
+              : `Show More (${aiListings.length - initialCount} more) ↓`}
+          </button>
+        </div>
+      )}
+    </div>
+  )}
+
+  {/* Regular Marketplace */}
+  <SectionMarketplace
+    listings={filteredListings}
+    cropFilter={cropFilter}
+    setCropFilter={setCropFilter}
+    intent="buy"
+    onRequestToBuy={handleRequestToBuy}
+    onListingClick={handleListingClick}
+  />
+</>
           )}
+
           {section === "buy" && (
             <SectionPostDemand
               user={user}
@@ -506,10 +662,13 @@ export default function BuyerDashboard() {
               }}
             />
           )}
+
           {section === "matches" && (
             <SectionMatches matches={matches} userId={user.id} />
           )}
+
           {section === "waitlist" && <SectionWaitlist waitlist={waitlist} />}
+
           {section === "notifications" && (
             <SectionNotifications
               notifs={notifs}
@@ -520,6 +679,7 @@ export default function BuyerDashboard() {
               }}
             />
           )}
+
           {section === "settings" && (
             <SectionSettings
               user={user}

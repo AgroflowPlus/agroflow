@@ -10,8 +10,8 @@ interface SectionMarketplaceProps {
   setCropFilter: (c: CropType | "All") => void;
   intent: "buy" | "sell";
   onRequestToBuy: (l: Listing) => void;
+  onListingClick?: (l: Listing) => void;  // ADD THIS
 }
-
 
 export function SectionMarketplace({
   listings,
@@ -19,6 +19,7 @@ export function SectionMarketplace({
   setCropFilter,
   intent,
   onRequestToBuy,
+  onListingClick,  // ADD THIS
 }: SectionMarketplaceProps) {
   return (
     <>
@@ -57,6 +58,7 @@ export function SectionMarketplace({
               listing={listing}
               intent={intent}
               onRequestToBuy={onRequestToBuy}
+              onClick={onListingClick}  // ADD THIS
             />
           ))}
         </div>

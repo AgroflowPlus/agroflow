@@ -212,6 +212,12 @@ model Match {
   status         MatchStatus @default(pending)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
+  
+  // ── AI MATCHING FIELDS (ADD THESE) ──────────────────────────
+  aiScore        Int?        @default(0)    // AI match score (0-100)
+  matchReasons   String[]    @default([])   // Reasons why this match was made
+  aiConfidence   Float?      @default(0)    // AI confidence level (0-1)
+  isAIGenerated  Boolean     @default(false) // Whether this match was AI-generated
 }
 
 model Alert {

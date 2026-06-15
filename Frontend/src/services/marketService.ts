@@ -80,6 +80,22 @@ export interface Match {
   distance:       number
   status:         'pending' | 'confirmed' | 'declined'
   matchedAt:      string
+  aiScore?:       number       // AI match score (0-100)
+  matchReasons?:  string[]     // Reasons for the match
+  aiConfidence?:  number       // AI confidence level
+  isAIGenerated?: boolean      // Whether AI generated this match
+}
+
+export interface AIRecommendation {
+  listingId:   string
+  sellerId:    string
+  sellerName:  string
+  cropType:    CropType
+  quantity:    number
+  location:    string
+  distance:    number
+  score:       number
+  reasons:     string[]
 }
 
 export interface Notification {
@@ -184,6 +200,20 @@ export const marketService = {
     }
   },
 
+  // ── AI RECOMMENDATIONS ──────────────────────────────────────
+  async getAIRecommendations(): Promise<AIRecommendation[]> {
+    try {
+      const res = await fetch(`${BASE_URL}/listings/ai-recommendations`, {
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      return data.matches || [];
+    } catch (error) {
+      console.error('Get AI recommendations error:', error);
+      return [];
+    }
+  },
+
   // ── DEMAND / WAITLIST ─────────────────────────────────────
   async postDemand(data: {
     cropType: CropType
@@ -261,36 +291,47 @@ export const marketService = {
     } catch {}
   },
 
-  // ── MATCHES ───────────────────────────────────────────────
+  // ── MATCHES (WITH AI SCORES) ──────────────────────────────
   async getMatches(): Promise<Match[]> {
     try {
       const res  = await fetch(`${BASE_URL}/listings/my/matches`, { headers: authHeaders() })
       const data = await res.json()
-      // Normalize backend match shape to frontend Match interface
+      // Normalize backend match shape to frontend Match interface with AI fields
       return (data.matches || []).map((m: any) => ({
-        id:          m.id,
-        listingId:   m.listingId,
-        demandId:    m.demandId,
-        requestId:   m.requestId,
-        cropType:    m.cropType,
-        buyerId:     m.buyerId,
-        buyerName:   m.buyer?.user?.name  || '',
-        buyerEmail:  m.buyer?.user?.email || '',
-        buyerLoc:    m.buyerLocation,
-        sellerId:    m.sellerId,
-        sellerName:  m.seller?.user?.name  || '',
-        sellerEmail: m.seller?.user?.email || '',
-        sellerLoc:   m.sellerLocation,
-        quantity:    m.quantity,
-        distance:    m.distance,
-        status:      m.status,
-        matchedAt:   m.createdAt,
+        id:            m.id,
+        listingId:     m.listingId,
+        demandId:      m.demandId,
+        requestId:     m.requestId,
+        cropType:      m.cropType,
+        buyerId:       m.buyerId,
+        buyerName:     m.buyer?.user?.name || '',
+        buyerEmail:    m.buyer?.user?.email || '',
+        buyerLoc:      m.buyerLocation,
+        sellerId:      m.sellerId,
+        sellerName:    m.seller?.user?.name || '',
+        sellerEmail:   m.seller?.user?.email || '',
+        sellerLoc:     m.sellerLocation,
+        quantity:      m.quantity,
+        distance:      m.distance,
+        status:        m.status,
+        matchedAt:     m.createdAt,
+        aiScore:       m.aiScore || 0,
+        matchReasons:  m.matchReasons || [],
+        aiConfidence:  m.aiConfidence || 0,
+        isAIGenerated: m.isAIGenerated || false,
       }))
     } catch {
       return []
     }
   },
   
+  // ── GET MATCHES WITH AI SCORES (sorted) ─────────────────────
+  async getMatchesWithAIScores(): Promise<Match[]> {
+    const matches = await this.getMatches();
+    // Sort by AI score descending (higher score first)
+    return matches.sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0));
+  },
+
   // ── NOTIFICATIONS (frontend in-memory) ───────────────────
   getNotifications(userId: string): Notification[] {
     return _notifications

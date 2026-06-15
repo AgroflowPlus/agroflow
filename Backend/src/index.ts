@@ -46,7 +46,11 @@ app.get("/health", (_req, res) => {
   res.json({ status: "AgroFlow+ backend is running", timestamp: new Date() });
 });
 
-// Your existing routes
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+
 app.use("/api/auth", authRoutes);
 app.use("/api/farmers", farmerRoutes);
 app.use("/api/fields", fieldRoutes);
