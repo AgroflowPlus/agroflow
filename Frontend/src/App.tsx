@@ -10,7 +10,6 @@ import FloatingAI           from './components/FloatingAI/FloatingAI'
 import { ToastContainer } from './components/Toast/Toast'
 import { ToastProvider } from './context/ToastContext'
 
-// Wrapper component for Farmer only (has Floating AI)
 function FarmerWithAI() {
   return (
     <>
@@ -20,7 +19,6 @@ function FarmerWithAI() {
   )
 }
 
-// Main App component with Toast Provider
 export default function App() {
   return (
     <ToastProvider>

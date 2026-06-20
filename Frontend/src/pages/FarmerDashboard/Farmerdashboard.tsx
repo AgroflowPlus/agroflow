@@ -18,6 +18,7 @@ import type { ChatSession as ServiceChatSession } from "../../services/chatServi
 import { useToast } from "../../context/ToastContext";
 import { ConfirmModal } from "../../components/ConfirmModal/ConfirmModal";
 import PageLoader from "../../components/PageLoader/PageLoader";
+import { VoiceRecorder } from "../../components/VoiceRecorder/VoiceRecorder";
 import styles from "./Farmerdashboard.module.css";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -201,13 +202,17 @@ export default function FarmerChat() {
     setShowChoiceModal(false);
 
     if (choice === "sell") {
-      // Navigate to Seller dashboard (same as BuyerSellerDashboard but with seller view)
       navigate("/seller");
       addToast("Welcome to Seller Mode! List your produce here.", "success");
     } else {
-      // Stay on AI chat page
       addToast("Ask me anything about your crops!", "success");
     }
+  };
+
+  const handleVoiceTranscript = (text: string) => {
+    setInput(text);
+    // Auto-send after a brief delay
+    setTimeout(() => send(text), 500);
   };
 
   const send = async (text: string) => {
@@ -326,9 +331,9 @@ export default function FarmerChat() {
   }
 
   const switchToSeller = () => {
-  navigate("/seller");
-  addToast("Switched to Seller Mode", "success");
-};
+    navigate("/seller");
+    addToast("Switched to Seller Mode", "success");
+  };
 
   return (
     <div className={styles.shell}>
@@ -349,7 +354,6 @@ export default function FarmerChat() {
             </div>
 
             <div className={styles.choiceModalOptions}>
-              {/* Sell Option */}
               <button
                 className={styles.choiceOption}
                 onClick={() => handleFarmerChoice("sell")}
@@ -364,7 +368,6 @@ export default function FarmerChat() {
                 <div className={styles.choiceOptionArrow}>→</div>
               </button>
 
-              {/* AI Option */}
               <button
                 className={styles.choiceOption}
                 onClick={() => handleFarmerChoice("ai")}
@@ -464,19 +467,15 @@ export default function FarmerChat() {
         </div>
 
         <div className={styles.switchBox}>
-  <div className={styles.switchLbl}>Switch Mode</div>
-  <button className={styles.switchBtn} onClick={switchToSeller}>
-    <RiStore3Line size={14} /> Go to Seller Mode
-  </button>
-</div>
+          <div className={styles.switchLbl}>Switch Mode</div>
+          <button className={styles.switchBtn} onClick={switchToSeller}>
+            <RiStore3Line size={14} /> Go to Seller Mode
+          </button>
+        </div>
 
-<div className={styles.sidebarDivider} />
+        <div className={styles.sidebarDivider} />
 
         <div className={styles.sidebarBottom}>
-          {/* REMOVED: Switch Role button - Farmers stay as farmers */}
-
-          <div className={styles.sidebarDivider} />
-
           <button
             className={`${styles.sidebarBottomBtn} ${activeSection === "profile" ? styles.sidebarBottomBtnActive : ""}`}
             onClick={() => {
@@ -710,6 +709,10 @@ export default function FarmerChat() {
                   onKeyDown={handleKey}
                   rows={1}
                   wrap="soft"
+                />
+                <VoiceRecorder
+                  onTranscript={handleVoiceTranscript}
+                  disabled={typing}
                 />
                 <button
                   className={`${styles.sendBtn} ${input.trim() ? styles.sendBtnActive : ""}`}

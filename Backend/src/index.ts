@@ -12,6 +12,7 @@ import aiRoutes from "./routes/ai";
 import chatRoutes from './routes/chat';
 import buyerRoutes from './routes/buyers';
 import roleRoutes from './routes/role';
+// import voiceRoutes from './routes/voice';
 
 if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
@@ -62,6 +63,7 @@ app.use('/api/listings', listingRoutes)
 app.use('/api/chat', chatRoutes);
 app.use('/api/buyers', buyerRoutes);
 app.use('/api/role', roleRoutes);
+// app.use('/api/voice', voiceRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Route not found" });

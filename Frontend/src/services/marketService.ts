@@ -80,10 +80,10 @@ export interface Match {
   distance:       number
   status:         'pending' | 'confirmed' | 'declined'
   matchedAt:      string
-  aiScore?:       number       // AI match score (0-100)
-  matchReasons?:  string[]     // Reasons for the match
-  aiConfidence?:  number       // AI confidence level
-  isAIGenerated?: boolean      // Whether AI generated this match
+  aiScore?:       number      
+  matchReasons?:  string[]     
+  aiConfidence?:  number       
+  isAIGenerated?: boolean      
 }
 
 export interface AIRecommendation {

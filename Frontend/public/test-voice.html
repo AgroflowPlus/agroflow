@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voice Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 40px; text-align: center; }
+        button { padding: 20px 40px; font-size: 18px; margin: 20px; }
+        .result { margin-top: 40px; padding: 20px; background: #f0f0f0; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h1>🎤 Voice Input Test</h1>
+    <p>Click the button and speak in English, Pidgin, or Yoruba</p>
+    
+    <button id="recordBtn">🎤 Start Recording</button>
+    
+    <div class="result">
+        <strong>Recognized Text:</strong>
+        <p id="result"></p>
+    </div>
+
+    <script>
+        const recordBtn = document.getElementById('recordBtn');
+        const resultEl = document.getElementById('result');
+        
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        
+        if (!SpeechRecognition) {
+            resultEl.textContent = 'Speech recognition not supported in this browser. Use Chrome or Edge.';
+            recordBtn.disabled = true;
+        }
+        
+        let recognition;
+        
+        recordBtn.addEventListener('click', () => {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-NG';
+            
+            recognition.onstart = () => {
+                recordBtn.textContent = '🔴 Recording...';
+                recordBtn.style.background = '#e05252';
+                resultEl.textContent = 'Listening...';
+            };
+            
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                resultEl.textContent = transcript;
+                recordBtn.textContent = '🎤 Start Recording';
+                recordBtn.style.background = '';
+            };
+            
+            recognition.onerror = (event) => {
+                resultEl.textContent = `Error: ${event.error}`;
+                recordBtn.textContent = '🎤 Start Recording';
+                recordBtn.style.background = '';
+            };
+            
+            recognition.onend = () => {
+                if (recordBtn.textContent !== '🎤 Start Recording') {
+                    recordBtn.textContent = '🎤 Start Recording';
+                    recordBtn.style.background = '';
+                }
+            };
+            
+            recognition.start();
+        });
+    </script>
+</body>
+</html>
