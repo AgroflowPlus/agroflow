@@ -5,22 +5,25 @@ const HUGGINGFACE_TOKEN = process.env.HUGGINGFACE_TOKEN;
 
 // Model endpoints that work on the free tier
 const MODELS = {
-  // For English and mixed languages
-  english: 'jonatasgrosman/wav2vec2-large-xlsr-53-english',
-  // For multilingual (supports Yoruba, Pidgin, etc.)
   multilingual: 'facebook/wav2vec2-large-xlsr-53',
-  // For Yoruba specifically (if you want to train it later)
-  yoruba: 'facebook/wav2vec2-large-xlsr-53-yoruba',
 };
 
 export async function speechToText(audioBuffer: Buffer): Promise<string> {
   try {
-    // First try the multilingual model (works for all languages)
+    console.log('🎤 Sending audio to Hugging Face...');
+    console.log(`📦 Audio size: ${audioBuffer.length} bytes`);
+    
+    // Log first few bytes for debugging
+    console.log(`📦 Audio first 50 bytes: ${audioBuffer.slice(0, 50).toString('hex')}`);
+    
     const formData = new FormData();
     formData.append('audio', audioBuffer, {
       filename: 'audio.webm',
       contentType: 'audio/webm',
     });
+
+    console.log(`🔑 Using token: ${HUGGINGFACE_TOKEN ? 'Token exists (first 10 chars: ' + HUGGINGFACE_TOKEN.substring(0, 10) + '...)' : '❌ NO TOKEN!'}`);
+    console.log(`🌐 Calling Hugging Face API: ${MODELS.multilingual}`);
 
     const response = await axios.post(
       `https://api-inference.huggingface.co/models/${MODELS.multilingual}`,
@@ -30,33 +33,52 @@ export async function speechToText(audioBuffer: Buffer): Promise<string> {
           'Authorization': `Bearer ${HUGGINGFACE_TOKEN}`,
           ...formData.getHeaders(),
         },
-        timeout: 30000, // 30 second timeout
+        timeout: 60000, // 60 second timeout (models can take time to load)
       }
     );
 
-    // If the response is successful, it will have a "text" field
+    console.log(`📝 Response status: ${response.status}`);
+    console.log(`📝 Response data:`, JSON.stringify(response.data).substring(0, 500));
+
     if (response.data && response.data.text) {
+      console.log(`✅ Transcription: "${response.data.text}"`);
       return response.data.text;
     }
 
-    // If the response is an array (some models return this format)
     if (Array.isArray(response.data) && response.data.length > 0) {
-      return response.data[0].text || '';
+      const text = response.data[0].text || '';
+      console.log(`✅ Transcription: "${text}"`);
+      return text;
     }
 
+    console.warn('⚠️ Unexpected response format:', JSON.stringify(response.data));
     return '';
   } catch (error: any) {
-    console.error('Speech-to-text error:', error.message);
+    console.error('❌ Speech-to-text error:', error.message);
     
-    // If the model is loading, Hugging Face returns a 503 with instructions
-    if (error.response?.status === 503) {
-      console.log('⏳ Model is loading, retry in 5 seconds...');
-      // Wait and retry once
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      return speechToText(audioBuffer); // Retry
+    if (error.response) {
+      console.error(`📡 Status: ${error.response.status}`);
+      console.error(`📡 Data:`, JSON.stringify(error.response.data));
+      
+      if (error.response.status === 503) {
+        console.log('⏳ Model is loading, waiting 10 seconds...');
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        console.log('🔄 Retrying...');
+        return speechToText(audioBuffer);
+      }
+      
+      if (error.response.status === 401) {
+        console.error('❌ Invalid Hugging Face token! Please check your HUGGINGFACE_TOKEN');
+        throw new Error('Invalid Hugging Face token. Please check your configuration.');
+      }
+      
+      if (error.response.status === 429) {
+        console.error('❌ Rate limit exceeded! Please wait and try again.');
+        throw new Error('Rate limit exceeded. Please try again later.');
+      }
     }
     
-    throw new Error('Failed to convert speech to text');
+    throw new Error(`Failed to convert speech to text: ${error.message}`);
   }
 }
 
@@ -149,13 +171,31 @@ export async function processVoiceInput(audioBuffer: Buffer): Promise<{
   detectedLanguage: string;
   englishText: string;
 }> {
-  const originalText = await speechToText(audioBuffer);
-  const detectedLanguage = detectLanguage(originalText);
-  const englishText = translateToEnglish(originalText, detectedLanguage);
+  console.log('🔵 processVoiceInput called');
+  console.log(`📦 Audio buffer size: ${audioBuffer.length} bytes`);
   
-  return {
-    originalText,
-    detectedLanguage,
-    englishText,
-  };
+  try {
+    const originalText = await speechToText(audioBuffer);
+    console.log(`🗣️ Original text: "${originalText}"`);
+    
+    if (!originalText || originalText.trim() === '') {
+      console.warn('⚠️ Empty transcription received');
+      throw new Error('No speech detected. Please speak clearly and try again.');
+    }
+    
+    const detectedLanguage = detectLanguage(originalText);
+    console.log(`🌍 Detected language: ${detectedLanguage}`);
+    
+    const englishText = translateToEnglish(originalText, detectedLanguage);
+    console.log(`📝 English text: "${englishText}"`);
+    
+    return {
+      originalText,
+      detectedLanguage,
+      englishText,
+    };
+  } catch (error: any) {
+    console.error('❌ processVoiceInput error:', error.message);
+    throw error;
+  }
 }
