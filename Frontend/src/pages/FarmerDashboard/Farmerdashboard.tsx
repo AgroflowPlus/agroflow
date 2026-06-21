@@ -19,6 +19,7 @@ import { useToast } from "../../context/ToastContext";
 import { ConfirmModal } from "../../components/ConfirmModal/ConfirmModal";
 import PageLoader from "../../components/PageLoader/PageLoader";
 import { VoiceRecorder } from "../../components/VoiceRecorder/VoiceRecorder";
+import { VoiceWave } from '../../components/VoiceWave/VoiceWave';
 import styles from "./Farmerdashboard.module.css";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ export default function FarmerChat() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSection, setSection] = useState<"chat" | "profile">("chat");
   const [loading, setLoading] = useState(true);
+  const [isRecording, setIsRecording] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     show: boolean;
     sessionId: string | null;
@@ -209,11 +211,13 @@ export default function FarmerChat() {
     }
   };
 
-  const handleVoiceTranscript = (text: string) => {
+const handleVoiceTranscript = (text: string) => {
+  setIsRecording(false);
+  if (text && text.trim()) {
     setInput(text);
-    // Auto-send after a brief delay
     setTimeout(() => send(text), 500);
-  };
+  }
+};
 
   const send = async (text: string) => {
     if (!text.trim() || typing) return;
@@ -699,29 +703,45 @@ export default function FarmerChat() {
                   ))}
                 </div>
               )}
-              <div className={styles.inputBox}>
-                <textarea
-                  ref={inputRef}
-                  className={styles.inputField}
-                  placeholder="Ask about your crops, harvest, soil, weather…"
-                  value={input}
-                  onChange={autoResize}
-                  onKeyDown={handleKey}
-                  rows={1}
-                  wrap="soft"
-                />
-                <VoiceRecorder
-                  onTranscript={handleVoiceTranscript}
-                  disabled={typing}
-                />
-                <button
-                  className={`${styles.sendBtn} ${input.trim() ? styles.sendBtnActive : ""}`}
-                  onClick={() => send(input)}
-                  disabled={!input.trim() || typing}
-                >
-                  <MdSend size={18} />
-                </button>
-              </div>
+             
+<div className={styles.inputBox}>
+  {!isRecording ? (
+    <textarea
+      ref={inputRef}
+      className={styles.inputField}
+      placeholder="Ask about your crops, harvest, soil, weather…"
+      value={input}
+      onChange={autoResize}
+      onKeyDown={handleKey}
+      rows={1}
+      wrap="soft"
+    />
+  ) : (
+    <div className={styles.voiceWaveWrapper}>
+      <VoiceWave isRecording={isRecording} audioLevel={50} />
+    </div>
+  )}
+  
+  <VoiceRecorder
+    onTranscript={handleVoiceTranscript}
+    disabled={typing}
+  />
+  
+  <button
+    className={`${styles.sendBtn} ${(input.trim() || isRecording) ? styles.sendBtnActive : ""}`}
+    onClick={() => {
+      if (isRecording) {
+        // The recorder will handle stopping and processing
+        // The button click will trigger stopRecording via the VoiceRecorder ref
+      } else {
+        send(input);
+      }
+    }}
+    disabled={!input.trim() && !isRecording || typing}
+  >
+    <MdSend size={18} />
+  </button>
+</div>
               <div className={styles.inputHint}>
                 Press Enter to send · Shift+Enter for new line
               </div>
