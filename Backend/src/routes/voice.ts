@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Response, Request } from 'express';
 import multer from 'multer';
 import { protect, AuthRequest } from '../middleware/auth';
 import prisma from '../db/index';
@@ -9,6 +9,34 @@ const router = Router();
 const upload = multer({ 
   storage: multer.memoryStorage(), 
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB max
+});
+
+// Test endpoint to check if Hugging Face is reachable
+router.get('/test', async (req: Request, res: Response) => {
+  try {
+    console.log('🔍 Testing Hugging Face connection...');
+    
+    const axios = require('axios');
+    const response = await axios.get('https://api-inference.huggingface.co/status', {
+      headers: {
+        'Authorization': `Bearer ${process.env.HUGGINGFACE_TOKEN}`,
+      },
+      timeout: 10000,
+    });
+    
+    res.json({ 
+      success: true, 
+      status: response.status,
+      data: response.data 
+    });
+  } catch (error: any) {
+    console.error('❌ Test failed:', error.message);
+    res.json({ 
+      success: false, 
+      error: error.message,
+      code: error.code 
+    });
+  }
 });
 
 // Process voice input
@@ -83,7 +111,6 @@ router.post('/process', protect, upload.single('audio'), async (req: AuthRequest
     console.error('\n❌❌❌ VOICE PROCESSING FAILED ❌❌❌');
     console.error(`⏱️ Failed after: ${duration}ms`);
     console.error(`📝 Error: ${error.message}`);
-    console.error(`📚 Stack: ${error.stack}`);
     console.error('═══════════════════════════════════════════════════════\n');
     
     res.status(500).json({ 
