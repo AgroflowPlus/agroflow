@@ -1,10 +1,10 @@
 .waveContainer {
-  flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 36px;
-  min-width: 0;
+  /* FILL the absolute wrapper completely */
+  width: 100%;
+  height: 100%;
 }
 
 .recDot {
@@ -27,12 +27,21 @@
   min-width: 32px;
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
 }
 
-.waveCanvas {
+/* canvasWrap fills remaining space, gives canvas a real measured size */
+.canvasWrap {
   flex: 1;
   height: 36px;
   min-width: 0;
+  position: relative;
+}
+
+.waveCanvas {
+  /* Fill the wrapper — canvas JS reads offsetWidth/Height from here */
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   display: block;
 }

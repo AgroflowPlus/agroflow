@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { RiStore3Line, RiLeafFill, RiRobot2Fill } from "react-icons/ri";
+import { RiStore3Line, RiLeafFill, RiRobot2Fill, RiMicLine } from "react-icons/ri";
 import { BsPerson, BsPencilSquare } from "react-icons/bs";
 import {
   MdOutlineLogout,
@@ -19,6 +19,7 @@ import { useToast } from "../../context/ToastContext";
 import { ConfirmModal } from "../../components/ConfirmModal/ConfirmModal";
 import PageLoader from "../../components/PageLoader/PageLoader";
 import { VoiceRecorder } from "../../components/VoiceRecorder/VoiceRecorder";
+import type { VoiceRecorderHandle } from '../../components/VoiceRecorder/VoiceRecorder';
 import { VoiceWave } from "../../components/VoiceWave/VoiceWave";
 import styles from "./Farmerdashboard.module.css";
 
@@ -97,6 +98,7 @@ export default function FarmerChat() {
   const [activeSection, setSection] = useState<"chat" | "profile">("chat");
   const [loading, setLoading] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     show: boolean;
@@ -106,7 +108,7 @@ export default function FarmerChat() {
   const [showChoiceModal, setShowChoiceModal] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const voiceRecorderRef = useRef<any>(null);
+  const voiceRecorderRef = useRef<VoiceRecorderHandle & { startRecording: () => void; cancelRecording: () => void }>(null);
 
   const SUGGESTIONS = [
     { icon: <GiWheat size={14} />, text: "Check my Maize crop" },
@@ -706,48 +708,77 @@ export default function FarmerChat() {
               )}
 
               <div className={styles.inputBox}>
-                <textarea
-                  ref={inputRef}
-                  className={`${styles.inputField} ${isRecording ? styles.inputFieldHidden : ""}`}
-                  placeholder="Ask about your crops, harvest, soil, weather…"
-                  value={input}
-                  onChange={autoResize}
-                  onKeyDown={handleKey}
-                  rows={1}
-                  wrap="soft"
-                />
 
-                <div
-                  className={`${styles.voiceWaveWrapper} ${isRecording ? styles.voiceWaveWrapperVisible : ""}`}
-                >
-                  <VoiceWave
-                    isRecording={isRecording}
-                    audioLevel={audioLevel}
-                  />
-                </div>
+  {/* Waveform — absolute, first in DOM, zero flex impact */}
+  <div className={`${styles.voiceWaveWrapper} ${isRecording ? styles.voiceWaveWrapperVisible : ""}`}>
+    <VoiceWave isRecording={isRecording} audioLevel={audioLevel} />
+  </div>
 
-                <VoiceRecorder
-                  ref={voiceRecorderRef}
-                  onTranscript={handleVoiceTranscript}
-                  disabled={typing}
-                  onRecordingStateChange={setIsRecording}
-                  onAudioLevel={setAudioLevel}
-                />
+  {/* VoiceRecorder — renders null, just logic */}
+  <VoiceRecorder
+    ref={voiceRecorderRef}
+    onTranscript={handleVoiceTranscript}
+    disabled={typing}
+    onRecordingStateChange={setIsRecording}
+    onProcessingStateChange={setIsProcessing}
+    onAudioLevel={setAudioLevel}
+  />
 
-                <button
-                  className={`${styles.sendBtn} ${input.trim() || isRecording ? styles.sendBtnActive : ""}`}
-                  onClick={() => {
-                    if (isRecording) {
-                      voiceRecorderRef.current?.stopAndSend();
-                    } else {
-                      send(input);
-                    }
-                  }}
-                  disabled={(!input.trim() && !isRecording) || typing}
-                >
-                  <MdSend size={18} />
-                </button>
-              </div>
+  {/* Textarea — stays in flex flow always, just fades out */}
+  <textarea
+    ref={inputRef}
+    className={`${styles.inputField} ${isRecording ? styles.inputFieldHidden : ""}`}
+    placeholder="Ask about your crops, harvest, soil, weather…"
+    value={input}
+    onChange={autoResize}
+    onKeyDown={handleKey}
+    rows={1}
+    wrap="soft"
+  />
+
+  {/* Cancel — only mounts when recording */}
+  {isRecording && (
+    <button
+      className={styles.cancelBtn}
+      onClick={() => voiceRecorderRef.current?.cancelRecording()}
+      aria-label="Cancel recording"
+    >
+      <MdClose size={16} />
+    </button>
+  )}
+
+  {/* Action button — always rightmost, never moves */}
+  {isProcessing ? (
+    <div className={styles.spinnerBtn}>
+      <div className={styles.spinner} />
+    </div>
+  ) : (input.trim() || isRecording) ? (
+    <button
+      className={`${styles.actionBtn} ${styles.actionBtnActive}`}
+      onClick={() => {
+        if (isRecording) {
+          voiceRecorderRef.current?.stopAndSend();
+        } else {
+          send(input);
+        }
+      }}
+      disabled={typing}
+      aria-label="Send"
+    >
+      <MdSend size={18} />
+    </button>
+  ) : (
+    <button
+      className={styles.actionBtn}
+      onClick={() => voiceRecorderRef.current?.startRecording()}
+      disabled={typing}
+      aria-label="Record voice"
+    >
+      <RiMicLine size={20} />
+    </button>
+  )}
+
+</div>
               <div className={styles.inputHint}>
                 Press Enter to send · Shift+Enter for new line
               </div>

@@ -1,20 +1,22 @@
 import { useState, useEffect } from 'react'
 import { RiRobot2Fill } from 'react-icons/ri'
 import { MdClose } from 'react-icons/md'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import styles from './FloatingAI.module.css'
 
 interface Props {
-  /** When true, renders the compact navbar pill variant (desktop only) */
   navbarMode?: boolean
 }
 
 export default function FloatingAI({ navbarMode = false }: Props) {
   const navigate                      = useNavigate()
+  const location                      = useLocation()
   const [showTooltip, setShowTooltip] = useState(false)
   const [hasOpened, setHasOpened]     = useState(false)
 
-  // Show tooltip after 3 s on first visit
+  // Don't render at all when already on the farmer dashboard
+  const isOnFarmerDashboard = location.pathname.startsWith('/farmer')
+
   useEffect(() => {
     const seen = localStorage.getItem('agf_ai_tooltip_seen')
     if (!seen) {
@@ -23,7 +25,6 @@ export default function FloatingAI({ navbarMode = false }: Props) {
     }
   }, [])
 
-  // Auto-hide tooltip after 6 s
   useEffect(() => {
     if (showTooltip) {
       const timer = setTimeout(() => setShowTooltip(false), 6000)
@@ -38,7 +39,10 @@ export default function FloatingAI({ navbarMode = false }: Props) {
     navigate('/farmer/dashboard')
   }
 
-  /* ── NAVBAR PILL (desktop) ─────────────────────── */
+  // Hide entirely when on farmer dashboard (both modes)
+  if (isOnFarmerDashboard) return null
+
+  /* ── NAVBAR PILL (desktop) ── */
   if (navbarMode) {
     return (
       <div className={styles.navPillWrap}>
@@ -54,7 +58,6 @@ export default function FloatingAI({ navbarMode = false }: Props) {
             </button>
           </div>
         )}
-
         <button
           className={`${styles.navPill} ${showTooltip ? styles.navPillActive : ''}`}
           onClick={handleClick}
@@ -65,13 +68,12 @@ export default function FloatingAI({ navbarMode = false }: Props) {
             <RiRobot2Fill size={16} />
           </span>
           <span className={styles.navPillText}>Ask Agro AI</span>
-          {/* <span className={styles.navPillBadge}>✨ New</span> */}
         </button>
       </div>
     )
   }
 
-  /* ── FLOATING BUTTON (mobile) ──────────────────── */
+  /* ── FLOATING BUTTON (mobile) ── */
   return (
     <>
       {showTooltip && (
@@ -86,7 +88,6 @@ export default function FloatingAI({ navbarMode = false }: Props) {
           </button>
         </div>
       )}
-
       <button
         className={styles.floatBtn}
         onClick={handleClick}
