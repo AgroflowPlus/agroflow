@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from './VoiceWave.module.css';
 
 interface VoiceWaveProps {
@@ -9,95 +9,124 @@ interface VoiceWaveProps {
 export function VoiceWave({ isRecording, audioLevel = 0 }: VoiceWaveProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
+  const historyRef = useRef<number[]>([]);
+  const [seconds, setSeconds] = useState(0);
+
+  // Timer
+  useEffect(() => {
+    if (!isRecording) { setSeconds(0); return; }
+    const id = setInterval(() => setSeconds(s => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [isRecording]);
+
+  const fmt = (s: number) =>
+    `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
   useEffect(() => {
-    if (!canvasRef.current) return;
-    
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const ctx = canvas.getContext('2d')!;
-    const width = canvas.width;
-    const height = canvas.height;
-    const barWidth = 4;
-    const barCount = 40;
-    const gap = 2;
-    
-    const drawWave = () => {
-      ctx.clearRect(0, 0, width, height);
-      
-      const centerY = height / 2;
-      const totalWidth = barCount * (barWidth + gap);
-      const startX = (width - totalWidth) / 2;
-      
-      for (let i = 0; i < barCount; i++) {
-        const x = startX + i * (barWidth + gap);
-        
-        let barHeight: number;
-        if (isRecording) {
-          const randomFactor = Math.random() * 0.8 + 0.2;
-          const levelFactor = audioLevel / 100;
-          barHeight = (10 + Math.sin(Date.now() / 200 + i) * 5 + 5) * (0.5 + levelFactor * 0.5) * randomFactor;
-          barHeight = Math.max(5, Math.min(barHeight, 40));
-        } else {
-          barHeight = 8;
-        }
-        
-        const y = centerY - barHeight / 2;
-        
-        const alpha = isRecording ? 0.8 + Math.random() * 0.2 : 0.3;
-        const gradient = ctx.createLinearGradient(x, y, x, y + barHeight);
-        if (isRecording) {
-          gradient.addColorStop(0, `rgba(168, 216, 50, ${alpha})`);
-          gradient.addColorStop(0.5, `rgba(45, 106, 53, ${alpha})`);
-          gradient.addColorStop(1, `rgba(168, 216, 50, ${alpha})`);
-        } else {
-          gradient.addColorStop(0, `rgba(158, 173, 159, ${alpha})`);
-          gradient.addColorStop(1, `rgba(158, 173, 159, ${alpha})`);
-        }
-        
-        ctx.fillStyle = gradient;
+    const dpr = window.devicePixelRatio || 1;
+
+    const resize = () => {
+      canvas.width = canvas.offsetWidth * dpr;
+      canvas.height = canvas.offsetHeight * dpr;
+    };
+    resize();
+
+    const BAR_W = 3 * dpr;
+    const GAP   = 2.5 * dpr;
+    const STEP  = BAR_W + GAP;
+
+    let lastPush = 0;
+    const PUSH_INTERVAL = 45; // ms — controls scroll speed
+
+    const draw = (now: number) => {
+      const W = canvas.width;
+      const H = canvas.height;
+      if (!W || !H) { animationRef.current = requestAnimationFrame(draw); return; }
+
+      const maxBars = Math.ceil(W / STEP) + 2;
+
+      // Push a new bar on interval
+      if (isRecording && now - lastPush > PUSH_INTERVAL) {
+        const level = audioLevel / 100;
+        const noise = (Math.random() - 0.5) * 0.18;
+        const h = Math.max(0.06, Math.min(1, level + noise));
+        historyRef.current.push(h);
+        if (historyRef.current.length > maxBars) historyRef.current.shift();
+        lastPush = now;
+      }
+
+      // Decay bars when stopped
+      if (!isRecording) {
+        historyRef.current = historyRef.current.map(v => v * 0.82);
+        if (historyRef.current.every(v => v < 0.02)) historyRef.current = [];
+      }
+
+      ctx.clearRect(0, 0, W, H);
+
+      const midY  = H / 2;
+      const maxH  = H * 0.80;
+      const bars  = historyRef.current;
+      const count = bars.length;
+
+      for (let i = 0; i < count; i++) {
+        const x = W - (count - i) * STEP;
+        if (x < -STEP) continue;
+
+        const barH  = Math.max(BAR_W, bars[i] * maxH);
+        const y     = midY - barH / 2;
+        const r     = Math.min(BAR_W / 2, barH / 2);
+        const age   = i / Math.max(count - 1, 1); // 0=oldest, 1=newest
+        const alpha = isRecording
+          ? 0.3 + age * 0.7
+          : bars[i] * 0.75;
+
+        ctx.fillStyle = `rgba(78, 204, 163, ${alpha.toFixed(2)})`;
+
         ctx.beginPath();
-        // Use arc for rounded corners instead of roundRect
-        const radius = 2;
-        ctx.moveTo(x + radius, y);
-        ctx.lineTo(x + barWidth - radius, y);
-        ctx.quadraticCurveTo(x + barWidth, y, x + barWidth, y + radius);
-        ctx.lineTo(x + barWidth, y + barHeight - radius);
-        ctx.quadraticCurveTo(x + barWidth, y + barHeight, x + barWidth - radius, y + barHeight);
-        ctx.lineTo(x + radius, y + barHeight);
-        ctx.quadraticCurveTo(x, y + barHeight, x, y + barHeight - radius);
-        ctx.lineTo(x, y + radius);
-        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + BAR_W - r, y);
+        ctx.arcTo(x + BAR_W, y, x + BAR_W, y + r, r);
+        ctx.lineTo(x + BAR_W, y + barH - r);
+        ctx.arcTo(x + BAR_W, y + barH, x + BAR_W - r, y + barH, r);
+        ctx.lineTo(x + r, y + barH);
+        ctx.arcTo(x, y + barH, x, y + barH - r, r);
+        ctx.lineTo(x, y + r);
+        ctx.arcTo(x, y, x + r, y, r);
+        ctx.closePath();
         ctx.fill();
       }
-      
-      if (isRecording) {
-        animationRef.current = requestAnimationFrame(drawWave);
+
+      // Flat idle bars when empty
+      if (historyRef.current.length === 0) {
+        const idleCount = Math.floor(W / STEP);
+        for (let i = 0; i < idleCount; i++) {
+          const x    = i * STEP;
+          const barH = BAR_W;
+          const y    = midY - barH / 2;
+          ctx.fillStyle = 'rgba(78,204,163,0.12)';
+          ctx.fillRect(x, y, BAR_W, barH);
+        }
       }
+
+      animationRef.current = requestAnimationFrame(draw);
     };
-    
-    drawWave();
-    
+
+    animationRef.current = requestAnimationFrame(draw);
+
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
   }, [isRecording, audioLevel]);
 
   return (
-    <div className={`${styles.waveContainer} ${isRecording ? styles.recording : ''}`}>
-      <canvas
-        ref={canvasRef}
-        width={400}
-        height={60}
-        className={styles.waveCanvas}
-      />
-      {isRecording && (
-        <div className={styles.recordingIndicator}>
-          <div className={styles.recordingDot}></div>
-          <span>Recording...</span>
-        </div>
-      )}
+    <div className={styles.waveContainer}>
+      {isRecording && <div className={styles.recDot} />}
+      {isRecording && <span className={styles.recTimer}>{fmt(seconds)}</span>}
+      <canvas ref={canvasRef} className={styles.waveCanvas} />
     </div>
   );
 }
