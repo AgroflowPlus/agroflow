@@ -8,12 +8,13 @@ export interface VoiceRecorderHandle {
 }
 
 interface VoiceRecorderProps {
-  onTranscript: (text: string) => void;
+  onTranscript: (text: string, language?: string) => void;  // ADD language
   disabled?: boolean;
   onRecordingStateChange?: (isRecording: boolean) => void;
   onProcessingStateChange?: (isProcessing: boolean) => void;
   onAudioLevel?: (level: number) => void;
 }
+ 
 
 export const VoiceRecorder = forwardRef<VoiceRecorderHandle, VoiceRecorderProps>(
   ({ onTranscript, disabled, onRecordingStateChange, onProcessingStateChange, onAudioLevel }, ref) => {
@@ -118,32 +119,36 @@ export const VoiceRecorder = forwardRef<VoiceRecorderHandle, VoiceRecorderProps>
     };
 
     const processAudio = async (audioBlob: Blob) => {
-      try {
-        const token = localStorage.getItem('agf_token');
-        const formData = new FormData();
-        formData.append('audio', audioBlob, 'recording.webm');
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/voice/process`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        });
-        const data = await res.json();
-        if (data.success) {
-          addToast(`🗣️ "${data.originalText}"`, 'success');
-          onTranscript(data.response);
-        } else {
-          addToast(data.error || 'Failed to process voice', 'error');
-          onTranscript('');
-        }
-      } catch (err) {
-        console.error('Voice processing error:', err);
-        addToast('Failed to process voice. Please try again.', 'error');
-        onTranscript('');
-      } finally {
-        onProcessingStateChange?.(false);
-      }
-    };
-
+  try {
+    const token = localStorage.getItem('agf_token');
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
+ 
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/voice/process`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+ 
+    const data = await res.json();
+ 
+    if (data.success) {
+      addToast(`🗣️ "${data.originalText}"`, 'success');
+      // Pass BOTH the AI response AND the detected language back to parent
+      onTranscript(data.response, data.detectedLanguage);
+    } else {
+      addToast(data.error || 'Failed to process voice', 'error');
+      onTranscript('');
+    }
+  } catch (err) {
+    console.error('Voice processing error:', err);
+    addToast('Failed to process voice. Please try again.', 'error');
+    onTranscript('');
+  } finally {
+    onProcessingStateChange?.(false);
+  }
+};
+ 
     return null;
   }
 );

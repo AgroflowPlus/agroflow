@@ -21,6 +21,7 @@ import PageLoader from "../../components/PageLoader/PageLoader";
 import { VoiceRecorder } from "../../components/VoiceRecorder/VoiceRecorder";
 import type { VoiceRecorderHandle } from '../../components/VoiceRecorder/VoiceRecorder';
 import { VoiceWave } from "../../components/VoiceWave/VoiceWave";
+import { useTTS } from '../../hooks/useTTS';
 import styles from "./Farmerdashboard.module.css";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -88,6 +89,7 @@ function nowTime() {
 export default function FarmerChat() {
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { speak, stop } = useTTS();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -108,7 +110,9 @@ export default function FarmerChat() {
   const [showChoiceModal, setShowChoiceModal] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const voiceRecorderRef = useRef<VoiceRecorderHandle & { startRecording: () => void; cancelRecording: () => void }>(null);
+  const voiceRecorderRef = useRef<VoiceRecorderHandle>(null);
+  const lastInputWasVoiceRef = useRef(false);
+  const lastLanguageRef = useRef<string>('english');
 
   const SUGGESTIONS = [
     { icon: <GiWheat size={14} />, text: "Check my Maize crop" },
@@ -214,11 +218,19 @@ export default function FarmerChat() {
     }
   };
 
-  const handleVoiceTranscript = (text: string) => {
+  const handleVoiceTranscript = (text: string, language?: string) => {
     setIsRecording(false);
+    lastInputWasVoiceRef.current = true;
+    lastLanguageRef.current = language ?? 'english';
     if (text && text.trim()) {
-      setInput(text);
-      setTimeout(() => send(text), 500);
+      const aiMsg: Message = {
+        id: newId(),
+        role: 'ai',
+        text: text.trim(),
+        time: nowTime(),
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      speak(text.trim(), lastLanguageRef.current);
     }
   };
 
@@ -289,6 +301,11 @@ export default function FarmerChat() {
 
         return updated;
       });
+
+      if (lastInputWasVoiceRef.current) {
+        speak(aiMsg.text, lastLanguageRef.current);
+        lastInputWasVoiceRef.current = false;
+      }
     } catch (err: any) {
       const errMsg: Message = {
         id: newId(),
@@ -312,6 +329,7 @@ export default function FarmerChat() {
     textarea.style.height = "auto";
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
     setInput(textarea.value);
+    stop();
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -708,77 +726,75 @@ export default function FarmerChat() {
               )}
 
               <div className={styles.inputBox}>
+                {/* Waveform — always mounted, shown via CSS class when recording */}
+                <div className={`${styles.voiceWaveWrapper} ${isRecording ? styles.voiceWaveWrapperVisible : ''}`}>
+                  <VoiceWave isRecording={isRecording} audioLevel={audioLevel} />
+                </div>
 
-  {/* Waveform — absolute, first in DOM, zero flex impact */}
-  <div className={`${styles.voiceWaveWrapper} ${isRecording ? styles.voiceWaveWrapperVisible : ""}`}>
-    <VoiceWave isRecording={isRecording} audioLevel={audioLevel} />
-  </div>
+                {/* VoiceRecorder — renders null, just logic */}
+                <VoiceRecorder
+                  ref={voiceRecorderRef}
+                  onTranscript={handleVoiceTranscript}
+                  disabled={typing}
+                  onRecordingStateChange={setIsRecording}
+                  onProcessingStateChange={setIsProcessing}
+                  onAudioLevel={setAudioLevel}
+                />
 
-  {/* VoiceRecorder — renders null, just logic */}
-  <VoiceRecorder
-    ref={voiceRecorderRef}
-    onTranscript={handleVoiceTranscript}
-    disabled={typing}
-    onRecordingStateChange={setIsRecording}
-    onProcessingStateChange={setIsProcessing}
-    onAudioLevel={setAudioLevel}
-  />
+                {/* Textarea — always in flex flow, fades out when recording */}
+                <textarea
+                  ref={inputRef}
+                  className={`${styles.inputField} ${isRecording ? styles.inputFieldHidden : ''}`}
+                  placeholder="Ask about your crops, harvest, soil, weather…"
+                  value={input}
+                  onChange={autoResize}
+                  onKeyDown={handleKey}
+                  rows={1}
+                  wrap="soft"
+                />
 
-  {/* Textarea — stays in flex flow always, just fades out */}
-  <textarea
-    ref={inputRef}
-    className={`${styles.inputField} ${isRecording ? styles.inputFieldHidden : ""}`}
-    placeholder="Ask about your crops, harvest, soil, weather…"
-    value={input}
-    onChange={autoResize}
-    onKeyDown={handleKey}
-    rows={1}
-    wrap="soft"
-  />
+                {/* Cancel button — only shows when recording */}
+                {isRecording && (
+                  <button
+                    className={styles.cancelBtn}
+                    onClick={() => voiceRecorderRef.current?.cancelRecording()}
+                    aria-label="Cancel recording"
+                  >
+                    <MdClose size={20} />
+                  </button>
+                )}
 
-  {/* Cancel — only mounts when recording */}
-  {isRecording && (
-    <button
-      className={styles.cancelBtn}
-      onClick={() => voiceRecorderRef.current?.cancelRecording()}
-      aria-label="Cancel recording"
-    >
-      <MdClose size={16} />
-    </button>
-  )}
-
-  {/* Action button — always rightmost, never moves */}
-  {isProcessing ? (
-    <div className={styles.spinnerBtn}>
-      <div className={styles.spinner} />
-    </div>
-  ) : (input.trim() || isRecording) ? (
-    <button
-      className={`${styles.actionBtn} ${styles.actionBtnActive}`}
-      onClick={() => {
-        if (isRecording) {
-          voiceRecorderRef.current?.stopAndSend();
-        } else {
-          send(input);
-        }
-      }}
-      disabled={typing}
-      aria-label="Send"
-    >
-      <MdSend size={18} />
-    </button>
-  ) : (
-    <button
-      className={styles.actionBtn}
-      onClick={() => voiceRecorderRef.current?.startRecording()}
-      disabled={typing}
-      aria-label="Record voice"
-    >
-      <RiMicLine size={20} />
-    </button>
-  )}
-
-</div>
+                {/* Action button — always rightmost, never moves */}
+                {isProcessing ? (
+                  <div className={styles.spinnerBtn}>
+                    <div className={styles.spinner} />
+                  </div>
+                ) : (input.trim() || isRecording) ? (
+                  <button
+                    className={`${styles.actionBtn} ${styles.actionBtnActive}`}
+                    onClick={() => {
+                      if (isRecording) {
+                        voiceRecorderRef.current?.stopAndSend();
+                      } else {
+                        send(input);
+                      }
+                    }}
+                    disabled={typing}
+                    aria-label="Send"
+                  >
+                    <MdSend size={18} />
+                  </button>
+                ) : (
+                  <button
+                    className={styles.actionBtn}
+                    onClick={() => voiceRecorderRef.current?.startRecording()}
+                    disabled={typing}
+                    aria-label="Record voice"
+                  >
+                    <RiMicLine size={20} />
+                  </button>
+                )}
+              </div>
               <div className={styles.inputHint}>
                 Press Enter to send · Shift+Enter for new line
               </div>
