@@ -1,7 +1,7 @@
 // src/services/aiEngine.ts
 // STRATEGY: Rule Engine = REAL Intelligence | Groq = ONLY Explanation
 
-import Groq from 'groq-sdk';
+import Groq from "groq-sdk";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -39,13 +39,16 @@ export interface AIResponse {
 
 // ── CROP KNOWLEDGE BASE (YOUR REAL INTELLIGENCE) ─────────────────────────────
 
-const CROP_DATA: Record<CropType, {
-  growthDays: number;
-  bestSoils: SoilType[];
-  waterInterval: number;
-  stages: { name: string; startPct: number }[];
-  pests: string[];
-}> = {
+const CROP_DATA: Record<
+  CropType,
+  {
+    growthDays: number;
+    bestSoils: SoilType[];
+    waterInterval: number;
+    stages: { name: string; startPct: number }[];
+    pests: string[];
+  }
+> = {
   Maize: {
     growthDays: 90,
     bestSoils: ["loamy", "silty"],
@@ -100,10 +103,34 @@ const CROP_DATA: Record<CropType, {
 };
 
 const SOIL_RATINGS: Record<CropType, Record<SoilType, string>> = {
-  Maize: { loamy: "Excellent", silty: "Good", sandy: "Fair", clay: "Poor", unknown: "Unknown" },
-  Cassava: { loamy: "Excellent", sandy: "Good", silty: "Fair", clay: "Poor", unknown: "Unknown" },
-  Tomato: { loamy: "Excellent", sandy: "Good", silty: "Good", clay: "Fair", unknown: "Unknown" },
-  Pepper: { loamy: "Excellent", silty: "Good", sandy: "Fair", clay: "Poor", unknown: "Unknown" },
+  Maize: {
+    loamy: "Excellent",
+    silty: "Good",
+    sandy: "Fair",
+    clay: "Poor",
+    unknown: "Unknown",
+  },
+  Cassava: {
+    loamy: "Excellent",
+    sandy: "Good",
+    silty: "Fair",
+    clay: "Poor",
+    unknown: "Unknown",
+  },
+  Tomato: {
+    loamy: "Excellent",
+    sandy: "Good",
+    silty: "Good",
+    clay: "Fair",
+    unknown: "Unknown",
+  },
+  Pepper: {
+    loamy: "Excellent",
+    silty: "Good",
+    sandy: "Fair",
+    clay: "Poor",
+    unknown: "Unknown",
+  },
 };
 
 // ── Helper Functions ─────────────────────────────────────────────────────────
@@ -119,8 +146,16 @@ function detectCropFromMessage(message: string): CropType | null {
 
 export function isGreeting(message: string): boolean {
   const m = message.toLowerCase().trim();
-  const greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "howdy"];
-  return greetings.includes(m) || greetings.some(g => m.startsWith(g));
+  const greetings = [
+    "hi",
+    "hello",
+    "hey",
+    "good morning",
+    "good afternoon",
+    "good evening",
+    "howdy",
+  ];
+  return greetings.includes(m) || greetings.some((g) => m.startsWith(g));
 }
 
 // ── RULE ENGINE (YOUR REAL INTELLIGENCE - DOES ALL THE CALCULATIONS) ─────────
@@ -146,12 +181,23 @@ export function runRuleEngine(input: AIInput): RuleResult {
       harvest.setDate(harvest.getDate() + data.growthDays);
       harvestDate = harvest.toISOString().split("T")[0];
       const today = new Date();
-      daysToHarvest = Math.ceil((harvest.getTime() - today.getTime()) / 86_400_000);
+      daysToHarvest = Math.ceil(
+        (harvest.getTime() - today.getTime()) / 86_400_000,
+      );
 
-      const elapsedDays = Math.ceil((today.getTime() - planted.getTime()) / 86_400_000);
-      const growthPct = Math.min(100, Math.round((elapsedDays / data.growthDays) * 100));
-      const stage = [...data.stages].reverse().find((s) => growthPct >= s.startPct);
-      growthStage = stage ? `${stage.name} (${growthPct}% complete)` : "Germination";
+      const elapsedDays = Math.ceil(
+        (today.getTime() - planted.getTime()) / 86_400_000,
+      );
+      const growthPct = Math.min(
+        100,
+        Math.round((elapsedDays / data.growthDays) * 100),
+      );
+      const stage = [...data.stages]
+        .reverse()
+        .find((s) => growthPct >= s.startPct);
+      growthStage = stage
+        ? `${stage.name} (${growthPct}% complete)`
+        : "Germination";
     }
 
     // 2. Check soil suitability
@@ -165,32 +211,41 @@ export function runRuleEngine(input: AIInput): RuleResult {
     // 3. Check irrigation needs
     if (input.lastIrrigation) {
       const lastWatered = new Date(input.lastIrrigation);
-      const daysSince = Math.ceil((Date.now() - lastWatered.getTime()) / 86_400_000);
+      const daysSince = Math.ceil(
+        (Date.now() - lastWatered.getTime()) / 86_400_000,
+      );
       if (daysSince >= data.waterInterval) {
         irrigationDue = true;
-        riskFlags.push(`Irrigation needed - ${daysSince} days since last watering`);
+        riskFlags.push(
+          `Irrigation needed - ${daysSince} days since last watering`,
+        );
       }
     }
 
     // 4. Check soil moisture
     if (input.soilMoisture !== undefined && input.soilMoisture < 20) {
-      riskFlags.push(`Very low soil moisture (${input.soilMoisture}%) - water immediately`);
+      riskFlags.push(
+        `Very low soil moisture (${input.soilMoisture}%) - water immediately`,
+      );
       irrigationDue = true;
     }
 
     // 5. Check NDVI (crop health)
     if (input.ndvi !== undefined && input.ndvi < 0.3) {
-      riskFlags.push(`Crop health is low (NDVI: ${input.ndvi}) - check for pests/disease`);
+      riskFlags.push(
+        `Crop health is low (NDVI: ${input.ndvi}) - check for pests/disease`,
+      );
     }
 
     // Build summary
     summary = `Crop: ${crop}`;
     if (growthStage) summary += ` | Stage: ${growthStage}`;
-    if (daysToHarvest !== null && daysToHarvest > 0) summary += ` | ${daysToHarvest} days to harvest`;
-    if (daysToHarvest !== null && daysToHarvest <= 0) summary += ` | READY TO HARVEST!`;
+    if (daysToHarvest !== null && daysToHarvest > 0)
+      summary += ` | ${daysToHarvest} days to harvest`;
+    if (daysToHarvest !== null && daysToHarvest <= 0)
+      summary += ` | READY TO HARVEST!`;
     if (soilSuitability) summary += ` | Soil: ${soilSuitability}`;
     if (irrigationDue) summary += ` | ⚠ Needs water`;
-    
   } else if (crop) {
     summary = `Crop: ${crop}`;
   } else {
@@ -212,22 +267,19 @@ export function runRuleEngine(input: AIInput): RuleResult {
 // ── BUILD PROMPT FOR GROQ (AI ONLY EXPLAINS, DOESN'T DECIDE) ─────────────────
 
 function buildExplanationPrompt(input: AIInput, rule: RuleResult): string {
-  return `You are AgroFlow AI - a friendly farming assistant for Nigerian farmers.
+  // Truncate farmer message to 300 chars to stay under Groq input limits
+  const farmerMsg = input.message.substring(0, 300);
 
-IMPORTANT: The calculations below are ACCURATE and MUST be used as facts. Do not change them.
+  const riskText = rule.riskFlags.length > 0
+    ? `Risks: ${rule.riskFlags.join('; ')}`
+    : 'No risks detected';
 
-SYSTEM CALCULATIONS (These are the FACTS):
+  return `You are AgroFlow AI, a friendly farming assistant for Nigerian farmers.
 
-${rule.summary}
+Facts: ${rule.summary}. ${riskText}.
+Farmer said: "${farmerMsg}"
 
-${rule.riskFlags.length > 0 ? `⚠️ RISKS DETECTED:\n${rule.riskFlags.map(f => `- ${f}`).join('\n')}\n` : ''}
-
-Farmer asked: "${input.message}"
-
-YOUR JOB:
-Explain these calculations in simple, helpful language. Give practical advice a farmer can use immediately.
-
-Keep response under 150 words. Be encouraging and specific to Nigerian farming conditions.`;
+Reply in 3-4 short sentences. Be practical, encouraging, and specific to Nigeria.`;
 }
 
 // ── GROQ CLIENT (ONLY FOR EXPLANATION) ──────────────────────────────────────
@@ -251,7 +303,7 @@ async function callGroq(prompt: string): Promise<string> {
     messages: [{ role: "user", content: prompt }],
     model: "llama-3.3-70b-versatile",
     temperature: 0.7,
-    max_tokens: 500,
+    max_tokens: 1024,
   });
 
   return completion.choices[0]?.message?.content || "";
@@ -261,9 +313,9 @@ async function callGroq(prompt: string): Promise<string> {
 
 function getFallbackResponse(rule: RuleResult): string {
   const crop = rule.crop || "your crop";
-  
+
   let response = `🌱 **${crop} Status Report**\n\n`;
-  
+
   if (rule.daysToHarvest !== null) {
     if (rule.daysToHarvest > 0) {
       response += `📅 **Harvest:** ${rule.daysToHarvest} days remaining\n\n`;
@@ -271,11 +323,11 @@ function getFallbackResponse(rule: RuleResult): string {
       response += `🎉 **Harvest:** Ready to harvest NOW!\n\n`;
     }
   }
-  
+
   if (rule.growthStage) {
     response += `🌿 **Growth Stage:** ${rule.growthStage}\n\n`;
   }
-  
+
   if (rule.soilSuitability) {
     response += `🌍 **Soil:** ${rule.soilSuitability}`;
     if (rule.soilSuitability === "Poor") {
@@ -283,21 +335,21 @@ function getFallbackResponse(rule: RuleResult): string {
     }
     response += `\n\n`;
   }
-  
+
   if (rule.irrigationDue) {
     response += `💧 **Watering Needed:** Your crop needs irrigation now!\n\n`;
   }
-  
+
   if (rule.riskFlags.length > 0) {
     response += `⚠️ **Alerts:**\n`;
-    rule.riskFlags.forEach(flag => {
+    rule.riskFlags.forEach((flag) => {
       response += `• ${flag}\n`;
     });
     response += `\n`;
   }
-  
+
   response += `💡 **Tip:** Monitor your ${crop} regularly for best results.`;
-  
+
   return response;
 }
 
@@ -306,21 +358,19 @@ function getFallbackResponse(rule: RuleResult): string {
 export async function processAIRequest(input: AIInput): Promise<AIResponse> {
   console.log("\n🔍 STEP 1: Running Rule Engine...");
   console.log(`   Message: "${input.message.substring(0, 50)}"`);
-  
-  // REMOVE or COMMENT OUT any greeting/thank you handling here
-  // Let the controller handle all greetings and thank yous
-  
+
   // STEP 1: Run Rule Engine (YOUR REAL INTELLIGENCE)
   const ruleResult = runRuleEngine(input);
   console.log(`   ✅ Rule Result: ${ruleResult.summary}`);
-  
+
   // STEP 2: Try AI for explanation only (if available)
   let aiText: string;
   let source: "groq" | "fallback";
-  
+
   try {
     console.log("🤖 STEP 2: Getting AI explanation from Groq...");
     const prompt = buildExplanationPrompt(input, ruleResult);
+    console.log(`   📝 Prompt length: ${prompt.length} chars`);
     aiText = await callGroq(prompt);
     source = "groq";
     console.log(`   ✅ AI explanation generated`);
@@ -329,7 +379,6 @@ export async function processAIRequest(input: AIInput): Promise<AIResponse> {
     aiText = getFallbackResponse(ruleResult);
     source = "fallback";
   }
-  
+
   return { ruleResult, aiText, source };
 }
-

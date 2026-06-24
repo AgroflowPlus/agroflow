@@ -1,5 +1,5 @@
-import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
-import { useToast } from '../../context/ToastContext';
+import { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
+import { useToast } from "../../context/ToastContext";
 
 export interface VoiceRecorderHandle {
   startRecording: () => void;
@@ -8,25 +8,40 @@ export interface VoiceRecorderHandle {
 }
 
 interface VoiceRecorderProps {
-  onTranscript: (text: string, language?: string) => void;  // ADD language
+  onTranscript: (
+    aiResponse: string,
+    language?: string,
+    originalText?: string,
+  ) => void;
   disabled?: boolean;
   onRecordingStateChange?: (isRecording: boolean) => void;
   onProcessingStateChange?: (isProcessing: boolean) => void;
   onAudioLevel?: (level: number) => void;
 }
- 
 
-export const VoiceRecorder = forwardRef<VoiceRecorderHandle, VoiceRecorderProps>(
-  ({ onTranscript, disabled, onRecordingStateChange, onProcessingStateChange, onAudioLevel }, ref) => {
+export const VoiceRecorder = forwardRef<
+  VoiceRecorderHandle,
+  VoiceRecorderProps
+>(
+  (
+    {
+      onTranscript,
+      disabled,
+      onRecordingStateChange,
+      onProcessingStateChange,
+      onAudioLevel,
+    },
+    ref,
+  ) => {
     const { addToast } = useToast();
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const audioChunksRef   = useRef<Blob[]>([]);
-    const streamRef        = useRef<MediaStream | null>(null);
-    const audioCtxRef      = useRef<AudioContext | null>(null);
-    const levelFrameRef    = useRef<number | null>(null);
-    const cancelledRef     = useRef(false);
-    const isRecordingRef   = useRef(false);
+    const audioChunksRef = useRef<Blob[]>([]);
+    const streamRef = useRef<MediaStream | null>(null);
+    const audioCtxRef = useRef<AudioContext | null>(null);
+    const levelFrameRef = useRef<number | null>(null);
+    const cancelledRef = useRef(false);
+    const isRecordingRef = useRef(false);
 
     useImperativeHandle(ref, () => ({
       startRecording,
@@ -37,7 +52,7 @@ export const VoiceRecorder = forwardRef<VoiceRecorderHandle, VoiceRecorderProps>
     useEffect(() => {
       return () => {
         stopAudioContext();
-        streamRef.current?.getTracks().forEach(t => t.stop());
+        streamRef.current?.getTracks().forEach((t) => t.stop());
       };
     }, []);
 
@@ -48,7 +63,9 @@ export const VoiceRecorder = forwardRef<VoiceRecorderHandle, VoiceRecorderProps>
     };
 
     const startLevelMonitor = (stream: MediaStream) => {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const ctx = new (
+        window.AudioContext || (window as any).webkitAudioContext
+      )();
       audioCtxRef.current = ctx;
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 64;
@@ -66,7 +83,9 @@ export const VoiceRecorder = forwardRef<VoiceRecorderHandle, VoiceRecorderProps>
     const startRecording = async () => {
       if (disabled) return;
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
         streamRef.current = stream;
         cancelledRef.current = false;
 
@@ -74,16 +93,18 @@ export const VoiceRecorder = forwardRef<VoiceRecorderHandle, VoiceRecorderProps>
         mediaRecorderRef.current = mediaRecorder;
         audioChunksRef.current = [];
 
-        mediaRecorder.ondataavailable = e => {
+        mediaRecorder.ondataavailable = (e) => {
           if (e.data.size > 0) audioChunksRef.current.push(e.data);
         };
 
         mediaRecorder.onstop = async () => {
           stopAudioContext();
-          stream.getTracks().forEach(t => t.stop());
+          stream.getTracks().forEach((t) => t.stop());
           onAudioLevel?.(0);
           if (cancelledRef.current) return;
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const audioBlob = new Blob(audioChunksRef.current, {
+            type: "audio/webm",
+          });
           await processAudio(audioBlob);
         };
 
@@ -91,10 +112,9 @@ export const VoiceRecorder = forwardRef<VoiceRecorderHandle, VoiceRecorderProps>
         mediaRecorder.start();
         isRecordingRef.current = true;
         onRecordingStateChange?.(true);
-
       } catch (err) {
-        console.error('Mic error:', err);
-        addToast('Could not access microphone. Check permissions.', 'error');
+        console.error("Mic error:", err);
+        addToast("Could not access microphone. Check permissions.", "error");
       }
     };
 
@@ -119,38 +139,41 @@ export const VoiceRecorder = forwardRef<VoiceRecorderHandle, VoiceRecorderProps>
     };
 
     const processAudio = async (audioBlob: Blob) => {
-  try {
-    const token = localStorage.getItem('agf_token');
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.webm');
- 
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/voice/process`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-    });
- 
-    const data = await res.json();
- 
-    if (data.success) {
-      addToast(`🗣️ "${data.originalText}"`, 'success');
-      // Pass BOTH the AI response AND the detected language back to parent
-      onTranscript(data.response, data.detectedLanguage);
-    } else {
-      addToast(data.error || 'Failed to process voice', 'error');
-      onTranscript('');
-    }
-  } catch (err) {
-    console.error('Voice processing error:', err);
-    addToast('Failed to process voice. Please try again.', 'error');
-    onTranscript('');
-  } finally {
-    onProcessingStateChange?.(false);
-  }
-};
- 
+      try {
+        const token = localStorage.getItem("agf_token");
+        const formData = new FormData();
+        formData.append("audio", audioBlob, "recording.webm");
+
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/voice/process`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+          },
+        );
+
+        const data = await res.json();
+
+        if (data.success) {
+          addToast(`🗣️ "${data.originalText}"`, "success");
+          // Pass: AI answer, detected language, what farmer actually said
+          onTranscript(data.response, data.detectedLanguage, data.originalText);
+        } else {
+          addToast(data.error || "Failed to process voice", "error");
+          onTranscript("");
+        }
+      } catch (err) {
+        console.error("Voice processing error:", err);
+        addToast("Failed to process voice. Please try again.", "error");
+        onTranscript("");
+      } finally {
+        onProcessingStateChange?.(false);
+      }
+    };
+
     return null;
-  }
+  },
 );
 
-VoiceRecorder.displayName = 'VoiceRecorder';
+VoiceRecorder.displayName = "VoiceRecorder";
