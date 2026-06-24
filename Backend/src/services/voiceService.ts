@@ -4,6 +4,35 @@ import { Readable } from 'stream';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+// ── GROQ TRANSLATION HELPER ───────────────────────────────────────────────────
+
+async function groqTranslate(
+  text: string,
+  fromLang: string,
+  toLang: string,
+): Promise<string> {
+  try {
+    const prompt = toLang === 'english'
+      ? `Translate this ${fromLang} text to English. Return ONLY the translation, nothing else:\n"${text}"`
+      : `Translate this English text to ${fromLang}. Keep it natural and conversational for a Nigerian farmer. Return ONLY the translation, nothing else:\n"${text}"`;
+
+    const completion = await groq.chat.completions.create({
+      messages: [{ role: 'user', content: prompt }],
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.3,    // low temp = more accurate translation
+      max_tokens: 512,
+    });
+
+    const result = completion.choices[0]?.message?.content?.trim();
+    if (!result) throw new Error('Empty translation');
+    console.log(`✅ Groq translated: "${result.substring(0, 80)}"`);
+    return result;
+  } catch (err: any) {
+    console.warn(`⚠️ Groq translation failed: ${err.message}`);
+    return text; // fallback: return original
+  }
+}
+
 // ── 1. SPEECH TO TEXT (Groq Whisper) ─────────────────────────────────────────
 
 export async function speechToText(audioBuffer: Buffer): Promise<string> {
@@ -60,13 +89,7 @@ export function detectLanguage(text: string): 'english' | 'yoruba' | 'pidgin' {
   return 'english';
 }
 
-// ── 3. TRANSLATE TO ENGLISH (MyMemory — free, no key needed) ─────────────────
-
-const MYMEMORY_LANG_MAP = {
-  yoruba:  'yo',
-  pidgin:  'en',   // MyMemory has no Pidgin — treat as English variant
-  english: 'en',
-};
+// ── 3. TRANSLATE TO ENGLISH (Groq) ─────────────────────────────────────────
 
 export async function translateToEnglish(
   text: string,
@@ -74,27 +97,18 @@ export async function translateToEnglish(
 ): Promise<string> {
   if (language === 'english') return text;
 
-  // For Pidgin: light word-swap is enough (MyMemory doesn't know Pidgin)
-  if (language === 'pidgin') return pidginToEnglish(text);
-
-  // For Yoruba: use MyMemory
-  try {
-    console.log(`🌍 Translating Yoruba → English via MyMemory...`);
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=yo|en`;
-    const res = await axios.get(url, { timeout: 8000 });
-    const translated = res.data?.responseData?.translatedText;
-    if (translated && translated !== text) {
-      console.log(`✅ Translated: "${translated}"`);
-      return translated;
-    }
-  } catch (err: any) {
-    console.warn(`⚠️ MyMemory failed: ${err.message} — using original text`);
+  // For Pidgin: use Groq for better translation
+  if (language === 'pidgin') {
+    console.log(`🌍 Translating Pidgin → English via Groq...`);
+    return groqTranslate(text, 'Nigerian Pidgin', 'english');
   }
 
-  return text; // fallback: send original, AI will still understand context
+  // For Yoruba: use Groq
+  console.log(`🌍 Translating Yoruba → English via Groq...`);
+  return groqTranslate(text, 'Yoruba', 'english');
 }
 
-// ── 4. TRANSLATE RESPONSE BACK ────────────────────────────────────────────────
+// ── 4. TRANSLATE RESPONSE BACK (Groq) ──────────────────────────────────────
 
 export async function translateFromEnglish(
   text: string,
@@ -102,26 +116,17 @@ export async function translateFromEnglish(
 ): Promise<string> {
   if (targetLanguage === 'english') return text;
 
-  if (targetLanguage === 'pidgin') return englishToPidgin(text);
-
-  // Yoruba: MyMemory en → yo
-  try {
-    console.log(`🌍 Translating English → Yoruba via MyMemory...`);
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|yo`;
-    const res = await axios.get(url, { timeout: 8000 });
-    const translated = res.data?.responseData?.translatedText;
-    if (translated && translated !== text) {
-      console.log(`✅ Translated back: "${translated.substring(0, 80)}..."`);
-      return translated;
-    }
-  } catch (err: any) {
-    console.warn(`⚠️ MyMemory reverse failed: ${err.message} — returning English`);
+  if (targetLanguage === 'pidgin') {
+    console.log(`🌍 Translating English → Pidgin via Groq...`);
+    return groqTranslate(text, 'English', 'Nigerian Pidgin');
   }
 
-  return text;
+  // Yoruba
+  console.log(`🌍 Translating English → Yoruba via Groq...`);
+  return groqTranslate(text, 'English', 'Yoruba');
 }
 
-// ── 5. PIDGIN DICTIONARIES ────────────────────────────────────────────────────
+// ── 5. PIDGIN DICTIONARIES (Fallback) ──────────────────────────────────────
 
 function pidginToEnglish(text: string): string {
   const map: Record<string, string> = {
