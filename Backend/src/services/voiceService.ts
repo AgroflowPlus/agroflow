@@ -1,205 +1,209 @@
-import Groq from 'groq-sdk';
-import axios from 'axios';
-import { Readable } from 'stream';
+import Groq from "groq-sdk";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// ── GROQ TRANSLATION HELPER ───────────────────────────────────────────────────
+// ── WHISPER HALLUCINATION PHRASES ─────────────────────────────
+const HALLUCINATED_PHRASES = [
+  "you", "thank you", "thanks", "thank you.", "thanks.",
+  "thank you for watching", "thanks for watching",
+  "bye", "goodbye", "see you", "see you next time",
+  "please subscribe", "like and subscribe",
+  ".", "..", "...", " ", "you.", "you!", "you?",
+];
 
+function isHallucination(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  if (t.length < 3) return true;
+  if (HALLUCINATED_PHRASES.includes(t)) return true;
+  const words = t.split(" ").filter(Boolean);
+  if (words.length === 1 && !["hi", "hello", "hey"].includes(words[0])) return true;
+  return false;
+}
+
+// ── GROQ TRANSLATION HELPER ───────────────────────────────────
 async function groqTranslate(
   text: string,
   fromLang: string,
   toLang: string,
 ): Promise<string> {
   try {
-    const prompt = toLang === 'english'
-      ? `Translate this ${fromLang} text to English. Return ONLY the translation, nothing else:\n"${text}"`
-      : `Translate this English text to ${fromLang}. Keep it natural and conversational for a Nigerian farmer. Return ONLY the translation, nothing else:\n"${text}"`;
+    let userPrompt = "";
+    if (toLang === "english") {
+      userPrompt = `Translate this ${fromLang} text to English. Return ONLY the translated text, nothing else:\n${text}`;
+    } else if (toLang === "pidgin") {
+      userPrompt = `Translate this English text to Nigerian Pidgin English. Use words like: wan, sabi, dey, abeg, wahala, wetin. Return ONLY the translation, nothing else:\n${text}`;
+    } else if (toLang === "yoruba") {
+      userPrompt = `Translate this English text to Yoruba language. Return ONLY the Yoruba translation, nothing else:\n${text}`;
+    }
 
     const completion = await groq.chat.completions.create({
-      messages: [{ role: 'user', content: prompt }],
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.3,    // low temp = more accurate translation
-      max_tokens: 512,
+      messages: [
+        {
+          role: "system",
+          content: "You are a translator. You only translate text. Never answer questions. Never add explanations. Return ONLY the translated text.",
+        },
+        { role: "user", content: userPrompt },
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.1,
+      max_tokens: 400,
     });
 
     const result = completion.choices[0]?.message?.content?.trim();
-    if (!result) throw new Error('Empty translation');
-    console.log(`✅ Groq translated: "${result.substring(0, 80)}"`);
+    if (!result) throw new Error("Empty translation");
+    console.log(`✅ Translated (${fromLang}→${toLang}): "${result.substring(0, 80)}"`);
     return result;
   } catch (err: any) {
-    console.warn(`⚠️ Groq translation failed: ${err.message}`);
-    return text; // fallback: return original
+    console.warn(`⚠️ Translation failed: ${err.message} — returning original`);
+    return text;
   }
 }
 
-// ── 1. SPEECH TO TEXT (Groq Whisper) ─────────────────────────────────────────
+// ── WHISPER TRANSCRIPTION (with optional language hint) ───────
+async function whisperTranscribe(
+  audioFile: File,
+  language?: string,
+): Promise<string> {
+  const options: any = {
+    file: audioFile,
+    model: "whisper-large-v3",
+    response_format: "text",
+  };
 
-export async function speechToText(audioBuffer: Buffer): Promise<string> {
-  console.log('🎤 Sending audio to Groq Whisper...');
+  // Pass language hint to Whisper for better accuracy
+  if (language) options.language = language;
+
+  const transcription = await groq.audio.transcriptions.create(options);
+  return (transcription as unknown as string).trim();
+}
+
+// ── SPEECH TO TEXT ────────────────────────────────────────────
+// Two-pass: first detect language from a quick English transcription,
+// then re-transcribe with the correct language hint for Yoruba
+export async function speechToText(audioBuffer: Buffer): Promise<{
+  text: string;
+  detectedLanguage: "english" | "yoruba" | "pidgin";
+}> {
+  console.log("🎤 Sending audio to Groq Whisper...");
+  console.log(`📦 Audio size: ${audioBuffer.length} bytes`);
+
+  if (audioBuffer.length < 5000) {
+    throw new Error("Audio too short. Please hold the button and speak clearly.");
+  }
 
   const arrayBuffer = audioBuffer.buffer.slice(
     audioBuffer.byteOffset,
-    audioBuffer.byteOffset + audioBuffer.byteLength
+    audioBuffer.byteOffset + audioBuffer.byteLength,
   ) as ArrayBuffer;
-  
-  // Groq SDK needs a File-like object — wrap as a Blob using ArrayBuffer
-  const audioFile = new File([arrayBuffer], 'recording.webm', {
-    type: 'audio/webm',
-  });
 
-  const transcription = await groq.audio.transcriptions.create({
-    file: audioFile,
-    model: 'whisper-large-v3',   // best accuracy, still free on Groq
-    response_format: 'text',
-    // No language lock — lets Whisper auto-detect English/Yoruba/Pidgin
-  });
+  const audioFile = new File([arrayBuffer], "recording.webm", { type: "audio/webm" });
 
-  const text = (transcription as unknown as string).trim();
-  console.log(`✅ Whisper transcript: "${text}"`);
+  // Pass 1 — transcribe without language hint (auto-detect)
+  const pass1Text = await whisperTranscribe(audioFile);
+  console.log(`✅ Pass 1 transcript: "${pass1Text}"`);
 
-  if (!text) throw new Error('No speech detected. Please speak clearly and try again.');
-  return text;
+  if (!pass1Text || isHallucination(pass1Text)) {
+    throw new Error("No speech detected. Please speak clearly and try again.");
+  }
+
+  // Detect language from pass 1
+  const detectedLanguage = await detectLanguageWithGroq(pass1Text);
+  console.log(`🌍 Detected language: ${detectedLanguage}`);
+
+  // Pass 2 — if Yoruba detected, re-transcribe with 'yo' hint for accuracy
+  if (detectedLanguage === "yoruba") {
+    try {
+      console.log("🔄 Re-transcribing with Yoruba language hint...");
+      const pass2Text = await whisperTranscribe(audioFile, "yo");
+      if (pass2Text && !isHallucination(pass2Text) && pass2Text.length > pass1Text.length * 0.5) {
+        console.log(`✅ Pass 2 (Yoruba) transcript: "${pass2Text}"`);
+        return { text: pass2Text, detectedLanguage };
+      }
+    } catch {
+      // If pass 2 fails, use pass 1
+    }
+  }
+
+  return { text: pass1Text, detectedLanguage };
 }
 
-// ── 2. LANGUAGE DETECTION ─────────────────────────────────────────────────────
-// Simple word-list detection — good enough for EN / YO / Pidgin
-
-export function detectLanguage(text: string): 'english' | 'yoruba' | 'pidgin' {
+// ── LANGUAGE DETECTION ────────────────────────────────────────
+export async function detectLanguageWithGroq(
+  text: string,
+): Promise<"english" | "yoruba" | "pidgin"> {
   const t = text.toLowerCase();
 
-  const yorubaWords = [
-    'mo', 'fẹ', 'fe', 'gbin', 'agbado', 'bawo', 'ṣe', 'se',
-    'ile', 'omi', 'kore', 'nibo', 'kini', 'igba', 'pupo',
-    'dara', 'buburu', 'ode', 'oko', 'ewe', 'irugbin',
-  ];
-  const pidginWords = [
-    'wan', 'sabi', 'dey', 'dem', 'fit', 'chop', 'komot',
-    'abeg', 'wahala', 'na', 'wey', 'sef', 'oga', 'padi',
-    'e don', 'wetin', 'how far', 'no be',
-  ];
+  // Unique Pidgin phrases
+  const pidginWords = ["sabi", "wahala", "abeg", "wetin", "how far", "e don", "i wan", "dem dey"];
+  if (pidginWords.some(w => t.includes(w))) return "pidgin";
 
-  const yorubaScore  = yorubaWords.filter(w => t.includes(w)).length;
-  const pidginScore  = pidginWords.filter(w => t.includes(w)).length;
+  // Yoruba WITH diacritics
+  const yorubaWithDiacritics = ["fẹ", "ṣe", "ọ", "ẹ", "ì", "à", "è", "agbado", "irugbin"];
+  if (yorubaWithDiacritics.some(w => t.includes(w))) return "yoruba";
 
-  if (yorubaScore  >= 2) return 'yoruba';
-  if (pidginScore  >= 2) return 'pidgin';
-  if (yorubaScore  === 1 && pidginScore === 0) return 'yoruba';
-  if (pidginScore  === 1 && yorubaScore === 0) return 'pidgin';
-  return 'english';
+  // Yoruba WITHOUT diacritics (phonetic)
+  const yorubaPhonetic = ["mo fe", "mo wa", "bawo ni", "se o", "gbin", "ewe "];
+  if (yorubaPhonetic.some(w => t.includes(w))) return "yoruba";
+
+  // Ask Groq if text looks non-English
+  const hasNonEnglishPattern =
+    /[^\x00-\x7F]/.test(text) ||
+    (text.split(" ").length < 8 &&
+      !/\b(the|is|are|can|how|what|when|where|why|plant|grow|farm|water|soil|crop|maize|cassava|tomato|pepper|i|my|me|you|your)\b/i.test(text));
+
+  if (hasNonEnglishPattern) {
+    try {
+      const completion = await groq.chat.completions.create({
+        messages: [{
+          role: "user",
+          content: `What language is this text? Reply with ONLY one word: english, yoruba, or pidgin.\nText: "${text}"`,
+        }],
+        model: "llama-3.3-70b-versatile",
+        temperature: 0,
+        max_tokens: 10,
+      });
+      const lang = completion.choices[0]?.message?.content?.trim().toLowerCase();
+      if (lang === "yoruba") return "yoruba";
+      if (lang === "pidgin") return "pidgin";
+    } catch {
+      // fallback
+    }
+  }
+
+  return "english";
 }
 
-// ── 3. TRANSLATE TO ENGLISH (Groq) ─────────────────────────────────────────
-
+// ── TRANSLATE TO ENGLISH ──────────────────────────────────────
 export async function translateToEnglish(
   text: string,
-  language: 'english' | 'yoruba' | 'pidgin',
+  language: "english" | "yoruba" | "pidgin",
 ): Promise<string> {
-  if (language === 'english') return text;
-
-  // For Pidgin: use Groq for better translation
-  if (language === 'pidgin') {
-    console.log(`🌍 Translating Pidgin → English via Groq...`);
-    return groqTranslate(text, 'Nigerian Pidgin', 'english');
-  }
-
-  // For Yoruba: use Groq
-  console.log(`🌍 Translating Yoruba → English via Groq...`);
-  return groqTranslate(text, 'Yoruba', 'english');
+  if (language === "english") return text;
+  if (language === "pidgin") return groqTranslate(text, "Nigerian Pidgin", "english");
+  return groqTranslate(text, "Yoruba", "english");
 }
 
-// ── 4. TRANSLATE RESPONSE BACK (Groq) ──────────────────────────────────────
-
+// ── TRANSLATE FROM ENGLISH ────────────────────────────────────
 export async function translateFromEnglish(
   text: string,
-  targetLanguage: 'english' | 'yoruba' | 'pidgin',
+  targetLanguage: "english" | "yoruba" | "pidgin",
 ): Promise<string> {
-  if (targetLanguage === 'english') return text;
-
-  if (targetLanguage === 'pidgin') {
-    console.log(`🌍 Translating English → Pidgin via Groq...`);
-    return groqTranslate(text, 'English', 'Nigerian Pidgin');
-  }
-
-  // Yoruba
-  console.log(`🌍 Translating English → Yoruba via Groq...`);
-  return groqTranslate(text, 'English', 'Yoruba');
+  if (targetLanguage === "english") return text;
+  if (targetLanguage === "pidgin") return groqTranslate(text, "English", "Nigerian Pidgin");
+  return groqTranslate(text, "English", "Yoruba");
 }
 
-// ── 5. PIDGIN DICTIONARIES (Fallback) ──────────────────────────────────────
-
-function pidginToEnglish(text: string): string {
-  const map: Record<string, string> = {
-    'i wan':      'I want to',
-    'wan':        'want to',
-    'sabi':       'know',
-    'dey':        'is',
-    'dem':        'they',
-    'fit':        'can',
-    'chop':       'eat',
-    'komot':      'remove',
-    'abeg':       'please',
-    'no wahala':  'no problem',
-    'wahala':     'problem',
-    'na':         'it is',
-    'wey':        'which',
-    'sef':        'also',
-    'oga':        'boss',
-    'padi':       'friend',
-    'wetin':      'what',
-    'how far':    'how are you',
-    'e don':      'it has',
-    'no be':      'is it not',
-    'gbe':        'carry',
-    'plant am':   'plant it',
-    'water am':   'water it',
-    'harvest am': 'harvest it',
-  };
-
-  let result = text.toLowerCase();
-  Object.entries(map).forEach(([pidgin, english]) => {
-    result = result.replace(new RegExp(`\\b${pidgin}\\b`, 'gi'), english);
-  });
-  return result;
-}
-
-function englishToPidgin(text: string): string {
-  const map: Record<string, string> = {
-    'please':       'abeg',
-    'I want to':    'I wan',
-    'want to':      'wan',
-    'know':         'sabi',
-    'is ':          'dey ',
-    'they ':        'dem ',
-    'can ':         'fit ',
-    'no problem':   'no wahala',
-    'problem':      'wahala',
-    'what':         'wetin',
-    'also':         'sef',
-    'it has':       'e don',
-    'how are you':  'how far',
-  };
-
-  let result = text;
-  Object.entries(map).forEach(([english, pidgin]) => {
-    result = result.replace(new RegExp(`\\b${english}\\b`, 'gi'), pidgin);
-  });
-  return result;
-}
-
-// ── 6. MAIN PIPELINE ──────────────────────────────────────────────────────────
-
+// ── MAIN PIPELINE ─────────────────────────────────────────────
 export async function processVoiceInput(audioBuffer: Buffer): Promise<{
-  originalText:     string;
+  originalText: string;
   detectedLanguage: string;
-  englishText:      string;
+  englishText: string;
 }> {
-  console.log('🔵 processVoiceInput started');
-  console.log(`📦 Audio size: ${audioBuffer.length} bytes`);
+  console.log("🔵 processVoiceInput started");
 
-  const originalText     = await speechToText(audioBuffer);
-  const detectedLanguage = detectLanguage(originalText);
-  const englishText      = await translateToEnglish(originalText, detectedLanguage);
+  // Single call — STT + language detection combined
+  const { text: originalText, detectedLanguage } = await speechToText(audioBuffer);
+  const englishText = await translateToEnglish(originalText, detectedLanguage);
 
   console.log(`🗣️  Original:  "${originalText}"`);
   console.log(`🌍 Language:  ${detectedLanguage}`);

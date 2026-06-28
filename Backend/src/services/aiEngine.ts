@@ -144,20 +144,6 @@ function detectCropFromMessage(message: string): CropType | null {
   return null;
 }
 
-export function isGreeting(message: string): boolean {
-  const m = message.toLowerCase().trim();
-  const greetings = [
-    "hi",
-    "hello",
-    "hey",
-    "good morning",
-    "good afternoon",
-    "good evening",
-    "howdy",
-  ];
-  return greetings.includes(m) || greetings.some((g) => m.startsWith(g));
-}
-
 // ── RULE ENGINE (YOUR REAL INTELLIGENCE - DOES ALL THE CALCULATIONS) ─────────
 
 export function runRuleEngine(input: AIInput): RuleResult {
@@ -271,15 +257,22 @@ function buildExplanationPrompt(input: AIInput, rule: RuleResult): string {
   const farmerMsg = input.message.substring(0, 300);
 
   const riskText = rule.riskFlags.length > 0
-    ? `Risks: ${rule.riskFlags.join('; ')}`
-    : 'No risks detected';
+    ? `Problems found: ${rule.riskFlags.join('; ')}.`
+    : '';
 
-  return `You are AgroFlow AI, a friendly farming assistant for Nigerian farmers.
+  return `You are AgroFlow, a farming helper for Nigerian farmers.
 
-Facts: ${rule.summary}. ${riskText}.
-Farmer said: "${farmerMsg}"
+Facts about this farmer's situation: ${rule.summary}. ${riskText}
+Farmer asked: "${farmerMsg}"
 
-Reply in 3-4 short sentences. Be practical, encouraging, and specific to Nigeria.`;
+RULES:
+- Use very simple English. Short sentences. Easy words.
+- Talk like you are face to face with a local farmer.
+- Give COMPLETE and USEFUL advice — don't stop too early.
+- Cover: what to do, how to do it, when to do it, what to watch out for.
+- Use words like: "Your maize need water now", "Plant when rain come", "Watch for pest"
+- Write 6 to 8 short sentences.
+- Always end with one action the farmer can do today.`;
 }
 
 // ── GROQ CLIENT (ONLY FOR EXPLANATION) ──────────────────────────────────────

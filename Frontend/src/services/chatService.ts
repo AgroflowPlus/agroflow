@@ -7,6 +7,9 @@ export interface ChatMessage {
   role: 'user' | 'ai'
   content: string
   createdAt: string
+  isVoice?: boolean
+  voiceText?: string
+  language?: string
 }
 
 export interface ChatSession {
@@ -52,10 +55,21 @@ export const chatService = {
   },
   
   // Save message to session
-  async saveMessage(sessionId: string, role: 'user' | 'ai', content: string): Promise<{ message: ChatMessage }> {
+  async saveMessage(
+    sessionId: string,
+    role: string,
+    content: string,
+    meta?: { isVoice?: boolean; voiceText?: string; language?: string }
+  ): Promise<{ message: ChatMessage }> {
     return request(`/sessions/${sessionId}/messages`, {
       method: 'POST',
-      body: JSON.stringify({ role, content })
+      body: JSON.stringify({
+        role,
+        content,
+        isVoice:   meta?.isVoice   ?? false,
+        voiceText: meta?.voiceText ?? null,
+        language:  meta?.language  ?? null,
+      }),
     })
   },
   

@@ -3,6 +3,15 @@ import { AuthRequest } from '../middleware/auth'
 import prisma from '../db/index'
 import { processAIRequest, AIInput, CropType } from '../services/aiEngine'
 
+// ── FARMING KEYWORDS ──────────────────────────────────────────────────────────
+// If any of these exist in the message, skip greeting check
+const farmingKeywords = [
+  'plant', 'grow', 'crop', 'farm', 'soil', 'water', 'harvest',
+  'maize', 'corn', 'cassava', 'tomato', 'pepper', 'fertilizer',
+  'pest', 'disease', 'irrigation', 'seed', 'yield', 'field',
+  'rain', 'dry', 'wet', 'sun', 'season', 'spray', 'weed',
+];
+
 export async function chat(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { message, fieldId } = req.body;
@@ -20,31 +29,42 @@ export async function chat(req: AuthRequest, res: Response): Promise<void> {
     const cleanMessage = message.trim();
     const lowerMessage = cleanMessage.toLowerCase();
     
-    // Greetings
+    // ── Check for farming intent ────────────────────────────────────────────
+    const hasFarmingIntent = farmingKeywords.some(k => lowerMessage.includes(k));
+
+    // ── Greeting check ──────────────────────────────────────────────────────
+    // Only treat as greeting if message is SHORT and has NO farming intent
     const greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"];
-    if (greetings.some(g => lowerMessage === g || lowerMessage.startsWith(g + " "))) {
+    const isPureGreeting = !hasFarmingIntent &&
+      lowerMessage.length < 40 &&
+      greetings.some(g => lowerMessage === g || lowerMessage.startsWith(g));
+
+    if (isPureGreeting) {
       res.status(200).json({
-        aiText: `👋 Hello! Welcome to AgroFlow+.\n\nI'm your farming assistant. I can help you with:\n• Crop health and harvest timing\n• Soil conditions and irrigation\n• Pest management\n\nWhat crop would you like to discuss? (Maize, Cassava, Tomato, or Pepper)`,
+        aiText: `Hello! I am AgroFlow, your farming helper.\n\nAsk me anything about your crops. I can help with:\n• When to plant and harvest\n• How to water your crops\n• How to fix soil problems\n• Pest and disease help\n\nWhich crop you want to talk about? Maize, Cassava, Tomato or Pepper?`,
         ruleResult: null,
         source: 'greeting',
       });
       return;
     }
-    
-    // Thank you messages
-    if (lowerMessage.includes("thank")) {
+
+    // ── Thank you check ─────────────────────────────────────────────────────
+    // Only treat as thank you if SHORT and no farming intent
+    if (!hasFarmingIntent && lowerMessage.length < 30 && lowerMessage.includes('thank')) {
       res.status(200).json({
-        aiText: `🌱 You're very welcome! I'm happy to help with your farming needs.\n\nFeel free to ask me anytime about your crops, harvest timing, or any agricultural questions. Have a great day on the farm! 🚜`,
+        aiText: `You are welcome! Come back anytime you need help with your farm. Good luck with your crops!`,
         ruleResult: null,
         source: 'greeting',
       });
       return;
     }
-    
-    // Goodbye messages
-    if (lowerMessage.includes("bye") || lowerMessage.includes("goodbye")) {
+
+    // ── Goodbye check ──────────────────────────────────────────────────────
+    // Only treat as goodbye if SHORT and no farming intent
+    if (!hasFarmingIntent && lowerMessage.length < 20 &&
+      (lowerMessage.includes('bye') || lowerMessage.includes('goodbye'))) {
       res.status(200).json({
-        aiText: `👋 Goodbye! It was a pleasure helping you.\n\nCome back anytime you need farming advice. Wishing you a bountiful harvest! 🌾`,
+        aiText: `Goodbye! Wishing you a good harvest. Come back anytime!`,
         ruleResult: null,
         source: 'greeting',
       });

@@ -59,17 +59,17 @@ enum MatchStatus {
 }
 
 model User {
-  id           String         @id @default(cuid())
+  id           String        @id @default(cuid())
   name         String
-  email        String         @unique
+  email        String        @unique
   phone        String?
   password     String
   role         Role
-  status       Status         @default(active)
+  status       Status        @default(active)
   location     String?
   avatarUrl    String?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   farmer       Farmer?
   buyer        Buyer?
@@ -78,18 +78,18 @@ model User {
 }
 
 model Farmer {
-  id                 String    @id @default(cuid())
-  userId             String    @unique
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  location           String
-  farmSize           String?
-  mainCrops          Json?     
-  soilType           String?
-  hasIrrigation      Boolean?  @default(false)
-  experience         String?   
+  id                  String    @id @default(cuid())
+  userId              String    @unique
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location            String
+  farmSize            String?
+  mainCrops           Json?
+  soilType            String?
+  hasIrrigation       Boolean?  @default(false)
+  experience          String?
   onboardingCompleted Boolean   @default(false)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   fields    Field[]
   listings  Listing[]
@@ -118,10 +118,10 @@ model Buyer {
   userId              String    @unique
   user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   preferredLocation   String?
-  preferredCrops      Json?     
-  purchaseFrequency   String?   
+  preferredCrops      Json?
+  purchaseFrequency   String?
   preferredQuantity   Int?
-  deliveryPreference  String?   
+  deliveryPreference  String?
   maxDistance         Int?      @default(15)
   onboardingCompleted Boolean   @default(false)
   createdAt           DateTime  @default(now())
@@ -212,12 +212,11 @@ model Match {
   status         MatchStatus @default(pending)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
-  
-  // ── AI MATCHING FIELDS (ADD THESE) ──────────────────────────
-  aiScore        Int?        @default(0)    // AI match score (0-100)
-  matchReasons   String[]    @default([])   // Reasons why this match was made
-  aiConfidence   Float?      @default(0)    // AI confidence level (0-1)
-  isAIGenerated  Boolean     @default(false) // Whether this match was AI-generated
+
+  aiScore        Int?        @default(0)
+  matchReasons   String[]    @default([])
+  aiConfidence   Float?      @default(0)
+  isAIGenerated  Boolean     @default(false)
 }
 
 model Alert {
@@ -259,5 +258,9 @@ model ChatMessage {
   session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   role      String
   content   String      @db.Text
+  isVoice   Boolean     @default(false)
+  voiceText String?     @db.Text
+  language  String?
   createdAt DateTime    @default(now())
 }
+

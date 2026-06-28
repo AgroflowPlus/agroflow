@@ -1,45 +1,72 @@
 import { useCallback, useRef } from 'react';
 
-const LANG_MAP: Record<string, string> = {
-  english: 'en-NG',
-  yoruba:  'yo',
-  pidgin:  'en-NG',
-};
+const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
 export function useTTS() {
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const speak = useCallback((
+  const speak = useCallback(async (
     text: string,
     language: string = 'english',
     onEnd?: () => void,
   ) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+    try {
+      // Stop any currently playing audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
 
-    const utterance    = new SpeechSynthesisUtterance(text);
-    utterance.lang     = LANG_MAP[language] ?? 'en-NG';
-    utterance.rate     = 0.92;
-    utterance.pitch    = 1.0;
-    utterance.volume   = 1.0;
+      const token = localStorage.getItem('agf_token');
 
-    // Fire onEnd when speech finishes naturally
-    if (onEnd) {
-      utterance.onend = () => onEnd();
+      const res = await fetch(`${BASE_URL}/voice/speak`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text, language }),
+      });
+
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      // Convert base64 to audio blob and play
+      const byteChars   = atob(data.audio);
+      const byteNumbers = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteNumbers[i] = byteChars.charCodeAt(i);
+      }
+      const blob     = new Blob([byteNumbers], { type: data.mimeType });
+      const url      = URL.createObjectURL(blob);
+      const audio    = new Audio(url);
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        onEnd?.();
+      };
+
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        onEnd?.();
+      };
+
+      await audio.play();
+
+    } catch (err: any) {
+      console.error('TTS error:', err.message);
+      onEnd?.();
     }
-
-    const voices = window.speechSynthesis.getVoices();
-    const match  = voices.find(v =>
-      v.lang.startsWith(utterance.lang.split('-')[0])
-    );
-    if (match) utterance.voice = match;
-
-    utteranceRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
   }, []);
 
   const stop = useCallback(() => {
-    window.speechSynthesis?.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
   }, []);
 
   return { speak, stop };

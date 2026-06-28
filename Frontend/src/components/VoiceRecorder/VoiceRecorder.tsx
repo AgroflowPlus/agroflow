@@ -101,7 +101,10 @@ export const VoiceRecorder = forwardRef<
           stopAudioContext();
           stream.getTracks().forEach((t) => t.stop());
           onAudioLevel?.(0);
-          if (cancelledRef.current) return;
+          if (cancelledRef.current) {
+            onProcessingStateChange?.(false);
+            return;
+          }
           const audioBlob = new Blob(audioChunksRef.current, {
             type: "audio/webm",
           });
@@ -144,6 +147,10 @@ export const VoiceRecorder = forwardRef<
         const formData = new FormData();
         formData.append("audio", audioBlob, "recording.webm");
 
+        console.log("🎤 Sending voice to backend...");
+        console.log("🎤 Audio size:", audioBlob.size, "bytes");
+        console.log("🎤 Token:", token ? "Present" : "Missing");
+
         const res = await fetch(
           `${import.meta.env.VITE_API_URL}/voice/process`,
           {
@@ -154,19 +161,30 @@ export const VoiceRecorder = forwardRef<
         );
 
         const data = await res.json();
+        
+        // ── TEMPORARY LOGGING ──
+        console.log("🎤 Voice response:", JSON.stringify(data, null, 2));
+        console.log("🎤 Status:", res.status);
+        console.log("🎤 Success:", data.success);
+        console.log("🎤 Response text:", data.response);
+        console.log("🎤 Detected language:", data.detectedLanguage);
+        console.log("🎤 Original text:", data.originalText);
+        // ── END TEMPORARY LOGGING ──
 
         if (data.success) {
           addToast(`🗣️ "${data.originalText}"`, "success");
           // Pass: AI answer, detected language, what farmer actually said
           onTranscript(data.response, data.detectedLanguage, data.originalText);
         } else {
+          // Show toast only — do NOT call onTranscript with any value
+          // This prevents empty/error responses from being processed
           addToast(data.error || "Failed to process voice", "error");
-          onTranscript("");
+          // Don't call onTranscript - nothing to display or speak
         }
       } catch (err) {
-        console.error("Voice processing error:", err);
+        console.error("❌ Voice processing error:", err);
         addToast("Failed to process voice. Please try again.", "error");
-        onTranscript("");
+        // Don't call onTranscript - nothing to display or speak
       } finally {
         onProcessingStateChange?.(false);
       }

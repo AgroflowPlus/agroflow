@@ -10,6 +10,7 @@ import {
   MdDeleteOutline,
   MdPlayCircle,
   MdPauseCircle,
+  MdVolumeUp,
 } from "react-icons/md";
 import { GiWheat, GiWateringCan } from "react-icons/gi";
 import { FaSeedling } from "react-icons/fa";
@@ -132,6 +133,7 @@ export default function FarmerChat() {
   useEffect(() => { loadSessions(); }, []);
   useEffect(() => { setShowChoiceModal(true); }, []);
 
+  // ── PATCH 1: loadSessions — restore isVoice/voiceText from DB ──────────────
   const loadSessions = async () => {
     try {
       setLoading(true);
@@ -147,6 +149,9 @@ export default function FarmerChat() {
             role: m.role,
             text: m.content,
             time: new Date(m.createdAt).toLocaleTimeString(),
+            isVoice: m.isVoice ?? false,
+            voiceText: m.voiceText ?? undefined,
+            voiceLanguage: m.language ?? undefined,
           })),
         }),
       );
@@ -222,7 +227,7 @@ export default function FarmerChat() {
     }
   };
 
-  // ── VOICE TRANSCRIPT HANDLER ──────────────────────────────────────────────
+  // ── PATCH 2: handleVoiceTranscript — save with isVoice fields ──────────────
   const handleVoiceTranscript = async (aiResponse: string, language?: string, originalText?: string) => {
     setIsRecording(false);
     if (!aiResponse?.trim()) return;
@@ -242,13 +247,13 @@ export default function FarmerChat() {
       voiceText:     originalText ?? '',   // what the farmer actually said
     };
 
-    // AI bubble — voice only, no text shown
+    // AI bubble — shows text + listen button (not voice-only)
     const aiMsg: Message = {
       id:            aiMsgId,
       role:          'ai',
       text:          aiResponse.trim(),
       time:          nowTime(),
-      isVoice:       true,                 // AI reply is also voice-only
+      isVoice:       false,                 // AI reply shows as text
       voiceLanguage: lang,
       voiceText:     aiResponse.trim(),    // the AI answer text for TTS
     };
@@ -259,7 +264,7 @@ export default function FarmerChat() {
     setPlayingMsgId(aiMsgId);
     speak(aiResponse.trim(), lang, () => setPlayingMsgId(null));
 
-    // Save to DB
+    // ── PATCH 2: Save with isVoice fields ─────────────────────────────────────
     try {
       let sessionId = currentSessionId;
       if (!sessionId) {
@@ -268,8 +273,22 @@ export default function FarmerChat() {
         setCurrentSessionId(sessionId);
         setActiveId(sessionId);
       }
-      await chatService.saveMessage(sessionId, 'user', originalText ?? '🎤 Voice message');
-      await chatService.saveMessage(sessionId, 'ai', aiResponse.trim());
+
+      // Save user voice message with isVoice: true
+      await chatService.saveMessage(
+        sessionId,
+        'user',
+        originalText ?? '🎤 Voice message',
+        { isVoice: true, voiceText: originalText ?? '', language: lang }
+      );
+
+      // Save AI response — NOT isVoice, shows as text + listen button
+      await chatService.saveMessage(
+        sessionId,
+        'ai',
+        aiResponse.trim(),
+        { isVoice: false, voiceText: aiResponse.trim(), language: lang }
+      );
 
       setSessions(prev => {
         const idx = prev.findIndex(s => s.id === sessionId);
@@ -633,10 +652,11 @@ export default function FarmerChat() {
                         </div>
                       )}
 
-                      <div className={`${styles.msgBubble} ${msg.role === "user" ? styles.msgBubbleUser : styles.msgBubbleAI} ${msg.isVoice ? styles.msgBubbleVoice : ''}`}>
+                      {/* ── PATCH 3: Message bubble JSX ────────────────────── */}
+                      <div className={`${styles.msgBubble} ${msg.role === "user" ? styles.msgBubbleUser : styles.msgBubbleAI} ${msg.isVoice && msg.role === 'user' ? styles.msgBubbleVoice : ''}`}>
 
-                        {msg.isVoice ? (
-                          /* ── VOICE BUBBLE — play/pause only, no text ── */
+                        {msg.isVoice && msg.role === 'user' ? (
+                          /* ── USER VOICE BUBBLE — play/pause only ── */
                           <div className={styles.voiceMsgContent}>
                             <button
                               className={styles.playPauseBtn}
@@ -652,24 +672,36 @@ export default function FarmerChat() {
                                 : <MdPlayCircle  size={26} />
                               }
                             </button>
-
-                            {/* Waveform-style bars while playing */}
                             <div className={`${styles.voiceBarWrap} ${playingMsgId === msg.id ? styles.voiceBarActive : ''}`}>
                               {Array.from({ length: 18 }).map((_, i) => (
                                 <div key={i} className={styles.voiceBar} style={{ animationDelay: `${i * 0.06}s` }} />
                               ))}
                             </div>
-
                             <span className={styles.msgTime} style={{ marginTop: 0, marginLeft: 4 }}>{msg.time}</span>
                           </div>
                         ) : (
-                          /* ── TEXT BUBBLE ── */
+                          /* ── TEXT BUBBLE (text + optional listen button for AI voice replies) ── */
                           <>
                             <div className={styles.msgText}>
                               {msg.text.split("\n").map((line, i, arr) => (
                                 <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
                               ))}
                             </div>
+
+                            {/* Listen button — only on AI messages that came from voice */}
+                            {msg.role === 'ai' && msg.voiceLanguage && msg.voiceText && (
+                              <button
+                                className={`${styles.listenBtn} ${playingMsgId === msg.id ? styles.listenBtnPlaying : ''}`}
+                                onClick={() => handlePlayPause(msg.id, msg.voiceText!, msg.voiceLanguage!)}
+                                aria-label={playingMsgId === msg.id ? 'Pause' : 'Listen'}
+                              >
+                                {playingMsgId === msg.id
+                                  ? <><MdPauseCircle size={13} /><span>Pause</span></>
+                                  : <><MdVolumeUp    size={13} /><span>Listen</span></>
+                                }
+                              </button>
+                            )}
+
                             <div className={styles.msgTime}>{msg.time}</div>
                           </>
                         )}

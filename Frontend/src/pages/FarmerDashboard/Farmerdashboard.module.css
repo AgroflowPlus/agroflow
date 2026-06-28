@@ -998,4 +998,32 @@
 .msgBubbleAI .voiceBarActive .voiceBar {
   background: #2d6a35;
 }
+
+
+/* Listen button on AI voice responses */
+.listenBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 100px;
+  border: 1px solid rgba(168,216,50,0.3);
+  background: rgba(168,216,50,0.08);
+  color: #2d6a35;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.listenBtn:hover {
+  background: rgba(168,216,50,0.18);
+  border-color: rgba(168,216,50,0.5);
+}
+.listenBtnPlaying {
+  background: rgba(168,216,50,0.22);
+  border-color: #a8d832;
+  color: #1e4d24;
+}
+ 
  

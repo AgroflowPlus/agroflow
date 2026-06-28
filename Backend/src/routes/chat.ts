@@ -4,112 +4,89 @@ import prisma from '../db/index'
 
 const router = Router()
 
-// Helper to safely get param as string
-const getParam = (param: string | string[] | undefined): string => {
-  return Array.isArray(param) ? param[0] : param || ''
-}
+const getParam = (param: string | string[] | undefined): string =>
+  Array.isArray(param) ? param[0] : param || ''
 
-// Get all chat sessions for user
+// ── GET /chat/sessions ────────────────────────────────────────
 router.get('/sessions', protect, async (req: AuthRequest, res: Response) => {
   try {
     const sessions = await prisma.chatSession.findMany({
-      where: { userId: req.user!.id },
-      include: {
-        messages: {
-          orderBy: { createdAt: 'asc' }
-        }
-      },
-      orderBy: { updatedAt: 'desc' }
+      where:   { userId: req.user!.id },
+      include: { messages: { orderBy: { createdAt: 'asc' } } },
+      orderBy: { updatedAt: 'desc' },
     })
-    
     res.json({ sessions })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get sessions error:', error)
-    res.status(500).json({ error: 'Failed to get sessions' })
+    res.status(500).json({ error: 'Failed to get sessions', detail: error.message })
   }
 })
 
-// Create new chat session
+// ── POST /chat/sessions ───────────────────────────────────────
 router.post('/sessions', protect, async (req: AuthRequest, res: Response) => {
   try {
     const { title } = req.body
-    
     const session = await prisma.chatSession.create({
-      data: {
-        userId: req.user!.id,
-        title: title || 'New Chat'
-      }
+      data: { userId: req.user!.id, title: title || 'New Chat' },
     })
-    
     res.json({ session })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create session error:', error)
-    res.status(500).json({ error: 'Failed to create session' })
+    res.status(500).json({ error: 'Failed to create session', detail: error.message })
   }
 })
 
-// Save message to session
+// ── POST /chat/sessions/:sessionId/messages ───────────────────
 router.post('/sessions/:sessionId/messages', protect, async (req: AuthRequest, res: Response) => {
   try {
     const sessionId = getParam(req.params.sessionId)
-    const { role, content } = req.body
-    
-    // Verify session belongs to user
+    const { role, content, isVoice, voiceText, language } = req.body
+
     const session = await prisma.chatSession.findFirst({
-      where: {
-        id: sessionId,
-        userId: req.user!.id
-      }
+      where: { id: sessionId, userId: req.user!.id },
     })
-    
     if (!session) {
       res.status(404).json({ error: 'Session not found' })
       return
     }
-    
+
     const message = await prisma.chatMessage.create({
       data: {
-        sessionId: sessionId,
+        sessionId,
         role,
-        content
-      }
+        content,
+        isVoice:   isVoice   ?? false,
+        voiceText: voiceText ?? null,
+        language:  language  ?? null,
+      },
     })
-    
-    // Update session's updatedAt
+
     await prisma.chatSession.update({
       where: { id: sessionId },
-      data: { updatedAt: new Date() }
+      data:  { updatedAt: new Date() },
     })
-    
+
     res.json({ message })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Save message error:', error)
-    res.status(500).json({ error: 'Failed to save message' })
+    res.status(500).json({ error: 'Failed to save message', detail: error.message })
   }
 })
 
-// Delete session
+// ── DELETE /chat/sessions/:sessionId ─────────────────────────
 router.delete('/sessions/:sessionId', protect, async (req: AuthRequest, res: Response) => {
   try {
     const sessionId = getParam(req.params.sessionId)
-    
-    // First delete all messages in the session
-    await prisma.chatMessage.deleteMany({
-      where: { sessionId: sessionId }
-    })
-    
-    // Then delete the session
+
+    await prisma.chatMessage.deleteMany({ where: { sessionId } })
     await prisma.chatSession.delete({
-      where: { 
-        id: sessionId,
-        userId: req.user!.id
-      }
+      where: { id: sessionId, userId: req.user!.id },
     })
-    
+
     res.json({ message: 'Session deleted' })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Delete session error:', error)
-    res.status(500).json({ error: 'Failed to delete session' })
+    res.status(500).json({ error: 'Failed to delete session', detail: error.message })
   }
 })
 
