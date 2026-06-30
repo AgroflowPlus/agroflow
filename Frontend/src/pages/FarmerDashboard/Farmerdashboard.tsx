@@ -22,9 +22,17 @@ import { useToast } from "../../context/ToastContext";
 import { ConfirmModal } from "../../components/ConfirmModal/ConfirmModal";
 import PageLoader from "../../components/PageLoader/PageLoader";
 import { VoiceRecorder } from "../../components/VoiceRecorder/VoiceRecorder";
-import type { VoiceRecorderHandle } from '../../components/VoiceRecorder/VoiceRecorder';
+import type { VoiceRecorderHandle } from "../../components/VoiceRecorder/VoiceRecorder";
 import { VoiceWave } from "../../components/VoiceWave/VoiceWave";
-import { useTTS } from '../../hooks/useTTS';
+import { useTTS } from "../../hooks/useTTS";
+
+// ── NEW: Onboarding ──────────────────────────────────────────────────────────
+import {
+  FarmerOnboarding,
+  shouldShowOnboarding,
+  markOnboardingDone,
+} from "../../components/FarmerOnboarding/FarmerOnboarding";
+
 import styles from "./Farmerdashboard.module.css";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -36,7 +44,7 @@ interface Message {
   time: string;
   isVoice?: boolean;
   voiceLanguage?: string;
-  voiceText?: string;   // actual spoken text for TTS playback
+  voiceText?: string;
 }
 
 interface ChatSession {
@@ -96,6 +104,7 @@ export default function FarmerChat() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { speak, stop } = useTTS();
+
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -114,7 +123,16 @@ export default function FarmerChat() {
     sessionId: string | null;
   }>({ show: false, sessionId: null });
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // ── Onboarding (mobile, first visit) + choice modal ──────────────────────
+  // Mobile first-visit:  showOnboarding=true  →  after complete → showChoiceModal=true
+  // Desktop / returning: showOnboarding=false →  immediately    → showChoiceModal=true
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [showChoiceModal, setShowChoiceModal] = useState(false);
+
+  // ── NEW: Track if this was a fresh login ──────────────────────────────────
+  const wasJustLoggedInRef = useRef(false);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const voiceRecorderRef = useRef<VoiceRecorderHandle>(null);
@@ -130,10 +148,53 @@ export default function FarmerChat() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typing]);
 
-  useEffect(() => { loadSessions(); }, []);
-  useEffect(() => { setShowChoiceModal(true); }, []);
+  useEffect(() => {
+    loadSessions();
+  }, []);
 
-  // ── PATCH 1: loadSessions — restore isVoice/voiceText from DB ──────────────
+  // ── UPDATED: Onboarding + choice modal logic ──────────────────────────────
+  useEffect(() => {
+    const justLoggedIn = authService.consumeJustLoggedIn();
+    wasJustLoggedInRef.current = justLoggedIn;
+
+    if (shouldShowOnboarding()) {
+      // Mobile + first time ever → show onboarding slides first.
+      // Choice modal will fire after onboarding completes (see handleOnboardingComplete)
+      // ONLY if this was a fresh login.
+      setShowOnboarding(true);
+    } else if (justLoggedIn) {
+      // Desktop OR returning mobile user, but freshly logged in →
+      // skip onboarding, show choice modal once.
+      setShowChoiceModal(true);
+    }
+    // else: navigated here from sidebar (AI <-> Seller switch) —
+    // show neither onboarding nor choice modal, just the normal chat UI.
+  }, []);
+
+  // ── UPDATED: Onboarding complete handler ──────────────────────────────────
+  const handleOnboardingComplete = () => {
+    markOnboardingDone();
+    setShowOnboarding(false);
+
+    // Re-check: was this a fresh login? (flag was already consumed above,
+    // so we use the ref to remember it across the onboarding flow)
+    if (wasJustLoggedInRef.current) {
+      setShowChoiceModal(true);
+    }
+  };
+
+  // ── Choice modal handler ──────────────────────────────────────────────────
+  const handleFarmerChoice = (choice: "sell" | "ai") => {
+    setShowChoiceModal(false);
+    if (choice === "sell") {
+      navigate("/seller");
+      addToast("Welcome to Seller Mode! List your produce here.", "success");
+    } else {
+      addToast("Ask me anything about your crops!", "success");
+    }
+  };
+
+  // ── loadSessions ──────────────────────────────────────────────────────────
   const loadSessions = async () => {
     try {
       setLoading(true);
@@ -206,16 +267,6 @@ export default function FarmerChat() {
     }
   };
 
-  const handleFarmerChoice = (choice: "sell" | "ai") => {
-    setShowChoiceModal(false);
-    if (choice === "sell") {
-      navigate("/seller");
-      addToast("Welcome to Seller Mode! List your produce here.", "success");
-    } else {
-      addToast("Ask me anything about your crops!", "success");
-    }
-  };
-
   const handlePlayPause = (msgId: string, voiceText: string, language: string) => {
     if (playingMsgId === msgId) {
       stop();
@@ -227,88 +278,85 @@ export default function FarmerChat() {
     }
   };
 
-  // ── PATCH 2: handleVoiceTranscript — save with isVoice fields ──────────────
+  // ── handleVoiceTranscript ──────────────────────────────────────────────────
   const handleVoiceTranscript = async (aiResponse: string, language?: string, originalText?: string) => {
     setIsRecording(false);
     if (!aiResponse?.trim()) return;
 
-    const lang = language ?? 'english';
+    const lang = language ?? "english";
     const userMsgId = newId();
-    const aiMsgId   = newId();
+    const aiMsgId = newId();
 
-    // User bubble — voice only, stores original spoken text for replay
     const userVoiceMsg: Message = {
-      id:            userMsgId,
-      role:          'user',
-      text:          '🎤 Voice message',
-      time:          nowTime(),
-      isVoice:       true,
+      id: userMsgId,
+      role: "user",
+      text: "🎤 Voice message",
+      time: nowTime(),
+      isVoice: true,
       voiceLanguage: lang,
-      voiceText:     originalText ?? '',   // what the farmer actually said
+      voiceText: originalText ?? "",
     };
 
-    // AI bubble — shows text + listen button (not voice-only)
     const aiMsg: Message = {
-      id:            aiMsgId,
-      role:          'ai',
-      text:          aiResponse.trim(),
-      time:          nowTime(),
-      isVoice:       false,                 // AI reply shows as text
+      id: aiMsgId,
+      role: "ai",
+      text: aiResponse.trim(),
+      time: nowTime(),
+      isVoice: false,
       voiceLanguage: lang,
-      voiceText:     aiResponse.trim(),    // the AI answer text for TTS
+      voiceText: aiResponse.trim(),
     };
 
-    setMessages(prev => [...prev, userVoiceMsg, aiMsg]);
+    setMessages((prev) => [...prev, userVoiceMsg, aiMsg]);
 
-    // Auto-play AI response, set playing state
     setPlayingMsgId(aiMsgId);
     speak(aiResponse.trim(), lang, () => setPlayingMsgId(null));
 
-    // ── PATCH 2: Save with isVoice fields ─────────────────────────────────────
     try {
       let sessionId = currentSessionId;
       if (!sessionId) {
-        const { session } = await chatService.createSession('Voice message');
+        const { session } = await chatService.createSession("Voice message");
         sessionId = session.id;
         setCurrentSessionId(sessionId);
         setActiveId(sessionId);
       }
 
-      // Save user voice message with isVoice: true
       await chatService.saveMessage(
         sessionId,
-        'user',
-        originalText ?? '🎤 Voice message',
-        { isVoice: true, voiceText: originalText ?? '', language: lang }
+        "user",
+        originalText ?? "🎤 Voice message",
+        { isVoice: true, voiceText: originalText ?? "", language: lang }
       );
 
-      // Save AI response — NOT isVoice, shows as text + listen button
       await chatService.saveMessage(
         sessionId,
-        'ai',
+        "ai",
         aiResponse.trim(),
         { isVoice: false, voiceText: aiResponse.trim(), language: lang }
       );
 
-      setSessions(prev => {
-        const idx = prev.findIndex(s => s.id === sessionId);
+      setSessions((prev) => {
+        const idx = prev.findIndex((s) => s.id === sessionId);
         const updated = [...messages, userVoiceMsg, aiMsg];
         if (idx !== -1) {
           const arr = [...prev];
-          arr[idx] = { ...arr[idx], messages: updated, preview: '🎤 Voice message', date: 'Today' };
+          arr[idx] = { ...arr[idx], messages: updated, preview: "🎤 Voice message", date: "Today" };
           const [moved] = arr.splice(idx, 1);
           return [moved, ...arr];
         }
-        return [{
-          id: sessionId!,
-          title: 'Voice message',
-          preview: '🎤 Voice message',
-          date: 'Today',
-          messages: updated,
-        }, ...prev];
+        return [
+          {
+            id: sessionId!,
+            title: "Voice message",
+            preview: "🎤 Voice message",
+            date: "Today",
+            messages: updated,
+          },
+          ...prev,
+        ];
       });
     } catch (err) {
-      console.error('Failed to save voice session:', err);
+      console.error("Failed to save voice session:", err);
     }
   };
 
@@ -351,7 +399,7 @@ export default function FarmerChat() {
       setMessages((prev) => {
         const updated = [...prev, aiMsg];
         setSessions((prevSessions) => {
-          const existingIndex = prevSessions.findIndex(s => s.id === sessionId);
+          const existingIndex = prevSessions.findIndex((s) => s.id === sessionId);
           if (existingIndex !== -1) {
             const updatedSessions = [...prevSessions];
             updatedSessions[existingIndex] = {
@@ -363,24 +411,27 @@ export default function FarmerChat() {
             const [moved] = updatedSessions.splice(existingIndex, 1);
             return [moved, ...updatedSessions];
           }
-          return [{
-            id: sessionId!,
-            title: text.length > 40 ? text.slice(0, 40) + "…" : text,
-            preview: text,
-            date: "Today",
-            messages: updated,
-          }, ...prevSessions];
+          return [
+            {
+              id: sessionId!,
+              title: text.length > 40 ? text.slice(0, 40) + "…" : text,
+              preview: text,
+              date: "Today",
+              messages: updated,
+            },
+            ...prevSessions,
+          ];
         });
         return updated;
       });
-
     } catch (err: any) {
       const errMsg: Message = {
         id: newId(),
         role: "ai",
-        text: err.message === "Not authenticated"
-          ? "Your session has expired. Please log in again."
-          : "Sorry, I'm having trouble connecting right now. Please try again in a moment.",
+        text:
+          err.message === "Not authenticated"
+            ? "Your session has expired. Please log in again."
+            : "Sorry, I'm having trouble connecting right now. Please try again in a moment.",
         time: nowTime(),
       };
       setMessages((prev) => [...prev, errMsg]);
@@ -422,396 +473,447 @@ export default function FarmerChat() {
   };
 
   return (
-    <div className={styles.shell}>
-      {showChoiceModal && (
-        <div className={styles.choiceModalOverlay}>
-          <div className={styles.choiceModal}>
-            <div className={styles.choiceModalHeader}>
-              <div className={styles.choiceModalIcon}>
-                <RiLeafFill size={36} color="#2d6a35" />
+    <>
+      {/* ── STEP 1: Onboarding (mobile, first visit) ────────────────────────── */}
+      {showOnboarding && <FarmerOnboarding onComplete={handleOnboardingComplete} />}
+
+      <div className={styles.shell}>
+        {/* ── STEP 2: Choice modal (AI vs Sell) ────────────────────────────── */}
+        {showChoiceModal && (
+          <div className={styles.choiceModalOverlay}>
+            <div className={styles.choiceModal}>
+              <div className={styles.choiceModalHeader}>
+                <div className={styles.choiceModalIcon}>
+                  <RiLeafFill size={36} color="#2d6a35" />
+                </div>
+                <h2 className={styles.choiceModalTitle}>Welcome back, {firstName}! 👨‍🌾</h2>
+                <p className={styles.choiceModalSubtitle}>What would you like to do today?</p>
               </div>
-              <h2 className={styles.choiceModalTitle}>
-                Welcome back, {firstName}! 👨‍🌾
-              </h2>
-              <p className={styles.choiceModalSubtitle}>
-                What would you like to do today?
-              </p>
-            </div>
-            <div className={styles.choiceModalOptions}>
-              <button className={styles.choiceOption} onClick={() => handleFarmerChoice("sell")}>
-                <div className={styles.choiceOptionIcon}><RiStore3Line size={32} color="#2d6a35" /></div>
-                <div className={styles.choiceOptionContent}>
-                  <h3>Sell Produce</h3>
-                  <p>List your harvest for buyers to find and purchase</p>
-                </div>
-                <div className={styles.choiceOptionArrow}>→</div>
-              </button>
-              <button className={styles.choiceOption} onClick={() => handleFarmerChoice("ai")}>
-                <div className={styles.choiceOptionIcon}><RiRobot2Fill size={32} color="#a8d832" /></div>
-                <div className={styles.choiceOptionContent}>
-                  <h3>AI Assistant</h3>
-                  <p>Get crop advice, harvest timing, and pest control</p>
-                </div>
-                <div className={styles.choiceOptionArrow}>→</div>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <ConfirmModal
-        isOpen={deleteConfirm.show}
-        title="Delete Chat"
-        message="Are you sure you want to delete this chat? This action cannot be undone."
-        onConfirm={confirmDelete}
-        onCancel={() => setDeleteConfirm({ show: false, sessionId: null })}
-      />
-      <ConfirmModal
-        isOpen={showLogoutConfirm}
-        title="Logout"
-        message="Are you sure you want to log out? You will need to login again to access your account."
-        onConfirm={confirmLogout}
-        onCancel={() => setShowLogoutConfirm(false)}
-      />
-
-      {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
-
-      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ""}`}>
-        <div className={styles.sidebarLogo}>
-          <div className={styles.logoMark}><RiLeafFill size={16} /></div>
-          <span className={styles.logoText}>AgroFlow<span>+</span></span>
-          <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)}>
-            <MdClose size={18} />
-          </button>
-        </div>
-
-        <button className={styles.newChatBtn} onClick={startNewChat}>
-          <BsPencilSquare size={15} /><span>New Chat</span>
-        </button>
-
-        <div className={styles.historySection}>
-          <div className={styles.historyLabel}>Recent Chats</div>
-          <div className={styles.historyList}>
-            {sessions.map((s) => (
-              <div key={s.id} className={styles.historyItemWrapper}>
-                <button
-                  className={`${styles.historyItem} ${activeId === s.id ? styles.historyItemActive : ""}`}
-                  onClick={() => loadSession(s)}
-                >
-                  <div className={styles.historyItemTitle}>{s.title}</div>
-                  <div className={styles.historyItemMeta}>
-                    <span className={styles.historyItemPreview}>{s.preview}</span>
-                    <span className={styles.historyItemDate}>{s.date}</span>
+              <div className={styles.choiceModalOptions}>
+                <button className={styles.choiceOption} onClick={() => handleFarmerChoice("sell")}>
+                  <div className={styles.choiceOptionIcon}>
+                    <RiStore3Line size={32} color="#2d6a35" />
                   </div>
+                  <div className={styles.choiceOptionContent}>
+                    <h3>Sell Produce</h3>
+                    <p>List your harvest for buyers to find and purchase</p>
+                  </div>
+                  <div className={styles.choiceOptionArrow}>→</div>
                 </button>
-                <button
-                  className={styles.deleteSessionBtn}
-                  onClick={() => handleDeleteClick(s.id)}
-                  title="Delete chat"
-                >
-                  <MdDeleteOutline size={15} />
+                <button className={styles.choiceOption} onClick={() => handleFarmerChoice("ai")}>
+                  <div className={styles.choiceOptionIcon}>
+                    <RiRobot2Fill size={32} color="#a8d832" />
+                  </div>
+                  <div className={styles.choiceOptionContent}>
+                    <h3>AI Assistant</h3>
+                    <p>Get crop advice, harvest timing, and pest control</p>
+                  </div>
+                  <div className={styles.choiceOptionArrow}>→</div>
                 </button>
-              </div>
-            ))}
-            {sessions.length === 0 && (
-              <div className={styles.noHistory}>
-                <p>No chats yet</p>
-                <p className={styles.noHistoryHint}>Start a new conversation above</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className={styles.switchBox}>
-          <div className={styles.switchLbl}>Switch Mode</div>
-          <button className={styles.switchBtn} onClick={switchToSeller}>
-            <RiStore3Line size={14} /> Go to Seller Mode
-          </button>
-        </div>
-        <div className={styles.sidebarDivider} />
-        <div className={styles.sidebarBottom}>
-          <button
-            className={`${styles.sidebarBottomBtn} ${activeSection === "profile" ? styles.sidebarBottomBtnActive : ""}`}
-            onClick={() => { setSection("profile"); setSidebarOpen(false); }}
-          >
-            <div className={styles.sidebarBottomIcon}><BsPerson size={16} /></div>
-            <span className={styles.sidebarBottomText}>Profile</span>
-          </button>
-          <button className={styles.sidebarBottomBtn} onClick={handleLogout}>
-            <div className={`${styles.sidebarBottomIcon} ${styles.logoutIcon}`}>
-              <MdOutlineLogout size={16} />
-            </div>
-            <span className={`${styles.sidebarBottomText} ${styles.logoutText}`}>Log Out</span>
-          </button>
-        </div>
-      </aside>
-
-      <div className={styles.main}>
-        <header className={styles.topbar}>
-          <button className={styles.menuBtn} onClick={() => setSidebarOpen((p) => !p)}>
-            <MdOutlineMenu size={20} />
-          </button>
-          <div className={styles.topbarCenter}>
-            <span className={styles.topbarTitle}>AgroFlow AI</span>
-          </div>
-          <div className={styles.topbarAvatar}>{initials}</div>
-        </header>
-
-        {activeSection === "profile" && (
-          <div className={styles.profileWrap}>
-            <div className={styles.profileCard}>
-              <div className={styles.profileAvatar}>{initials}</div>
-              <div className={styles.profileName}>{user.name}</div>
-              <div className={styles.profileBadge}>🌾 Farmer</div>
-              <div className={styles.profileStats}>
-                {[
-                  { val: "4", label: "Crops" },
-                  { val: "12", label: "Harvests" },
-                  { val: "8", label: "Deliveries" },
-                  { val: "98%", label: "On-Time" },
-                ].map(({ val, label }) => (
-                  <div key={label} className={styles.profileStat}>
-                    <div className={styles.profileStatVal}>{val}</div>
-                    <div className={styles.profileStatLabel}>{label}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className={styles.profileForm}>
-              <div className={styles.profileFormTitle}>Edit Profile</div>
-              <div className={styles.profileFields}>
-                <div className={styles.fieldRow}>
-                  <div className={styles.fieldGroup}>
-                    <label className={styles.fieldLabel}>Full Name</label>
-                    <input className={styles.fieldInput} defaultValue={user.name} />
-                  </div>
-                  <div className={styles.fieldGroup}>
-                    <label className={styles.fieldLabel}>Email</label>
-                    <input className={styles.fieldInput} defaultValue={user.email} type="email" />
-                  </div>
-                </div>
-                <div className={styles.fieldRow}>
-                  <div className={styles.fieldGroup}>
-                    <label className={styles.fieldLabel}>Phone</label>
-                    <input className={styles.fieldInput} placeholder="+234 800 000 0000" />
-                  </div>
-                  <div className={styles.fieldGroup}>
-                    <label className={styles.fieldLabel}>Location</label>
-                    <input className={styles.fieldInput} placeholder="e.g. Ibadan, Oyo" />
-                  </div>
-                </div>
-                <div className={styles.fieldRow}>
-                  <div className={styles.fieldGroup}>
-                    <label className={styles.fieldLabel}>Farm Size</label>
-                    <input className={styles.fieldInput} placeholder="e.g. 5 hectares" />
-                  </div>
-                  <div className={styles.fieldGroup}>
-                    <label className={styles.fieldLabel}>Soil Type</label>
-                    <input className={styles.fieldInput} placeholder="e.g. Loamy" />
-                  </div>
-                </div>
-                <button className={styles.saveBtn}>Save Changes</button>
               </div>
             </div>
           </div>
         )}
 
-        {activeSection === "chat" && (
-          <>
-            <div className={styles.chatArea}>
-              {isEmpty && (
-                <div className={styles.emptyState}>
-                  <div className={styles.emptyOrb}>
-                    <RiRobot2Fill size={36} style={{ color: "#2d6a35" }} />
-                  </div>
-                  <h2 className={styles.emptyTitle}>Good morning, {firstName} 👋</h2>
-                  <p className={styles.emptySubtitle}>
-                    I'm your AgroFlow AI assistant. Ask me anything about your
-                    crops, harvest timing, soil health, weather, or deliveries.
-                  </p>
-                  <div className={styles.suggestions}>
-                    {SUGGESTIONS.map(({ icon, text }) => (
-                      <button key={text} className={styles.suggestionChip} onClick={() => send(text)}>
-                        {icon}<span>{text}</span>
-                      </button>
-                    ))}
-                  </div>
+        <ConfirmModal
+          isOpen={deleteConfirm.show}
+          title="Delete Chat"
+          message="Are you sure you want to delete this chat? This action cannot be undone."
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirm({ show: false, sessionId: null })}
+        />
+        <ConfirmModal
+          isOpen={showLogoutConfirm}
+          title="Logout"
+          message="Are you sure you want to log out? You will need to login again to access your account."
+          onConfirm={confirmLogout}
+          onCancel={() => setShowLogoutConfirm(false)}
+        />
+
+        {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
+
+        <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ""}`}>
+          <div className={styles.sidebarLogo}>
+            <div className={styles.logoMark}>
+              <RiLeafFill size={16} />
+            </div>
+            <span className={styles.logoText}>
+              AgroFlow<span>+</span>
+            </span>
+            <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)}>
+              <MdClose size={18} />
+            </button>
+          </div>
+
+          <button className={styles.newChatBtn} onClick={startNewChat}>
+            <BsPencilSquare size={15} />
+            <span>New Chat</span>
+          </button>
+
+          <div className={styles.historySection}>
+            <div className={styles.historyLabel}>Recent Chats</div>
+            <div className={styles.historyList}>
+              {sessions.map((s) => (
+                <div key={s.id} className={styles.historyItemWrapper}>
+                  <button
+                    className={`${styles.historyItem} ${activeId === s.id ? styles.historyItemActive : ""}`}
+                    onClick={() => loadSession(s)}
+                  >
+                    <div className={styles.historyItemTitle}>{s.title}</div>
+                    <div className={styles.historyItemMeta}>
+                      <span className={styles.historyItemPreview}>{s.preview}</span>
+                      <span className={styles.historyItemDate}>{s.date}</span>
+                    </div>
+                  </button>
+                  <button
+                    className={styles.deleteSessionBtn}
+                    onClick={() => handleDeleteClick(s.id)}
+                    title="Delete chat"
+                  >
+                    <MdDeleteOutline size={15} />
+                  </button>
+                </div>
+              ))}
+              {sessions.length === 0 && (
+                <div className={styles.noHistory}>
+                  <p>No chats yet</p>
+                  <p className={styles.noHistoryHint}>Start a new conversation above</p>
                 </div>
               )}
+            </div>
+          </div>
 
-              {!isEmpty && (
-                <div className={styles.messages}>
-                  {messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`${styles.msgRow} ${msg.role === "user" ? styles.msgRowUser : styles.msgRowAI}`}
-                    >
-                      {msg.role === "ai" && (
+          <div className={styles.switchBox}>
+            <div className={styles.switchLbl}>Switch Mode</div>
+            <button className={styles.switchBtn} onClick={switchToSeller}>
+              <RiStore3Line size={14} /> Go to Seller Mode
+            </button>
+          </div>
+          <div className={styles.sidebarDivider} />
+          <div className={styles.sidebarBottom}>
+            <button
+              className={`${styles.sidebarBottomBtn} ${activeSection === "profile" ? styles.sidebarBottomBtnActive : ""}`}
+              onClick={() => {
+                setSection("profile");
+                setSidebarOpen(false);
+              }}
+            >
+              <div className={styles.sidebarBottomIcon}>
+                <BsPerson size={16} />
+              </div>
+              <span className={styles.sidebarBottomText}>Profile</span>
+            </button>
+            <button className={styles.sidebarBottomBtn} onClick={handleLogout}>
+              <div className={`${styles.sidebarBottomIcon} ${styles.logoutIcon}`}>
+                <MdOutlineLogout size={16} />
+              </div>
+              <span className={`${styles.sidebarBottomText} ${styles.logoutText}`}>Log Out</span>
+            </button>
+          </div>
+        </aside>
+
+        <div className={styles.main}>
+          <header className={styles.topbar}>
+            <button className={styles.menuBtn} onClick={() => setSidebarOpen((p) => !p)}>
+              <MdOutlineMenu size={20} />
+            </button>
+            <div className={styles.topbarCenter}>
+              <span className={styles.topbarTitle}>AgroFlow AI</span>
+            </div>
+            <div className={styles.topbarAvatar}>{initials}</div>
+          </header>
+
+          {activeSection === "profile" && (
+            <div className={styles.profileWrap}>
+              <div className={styles.profileCard}>
+                <div className={styles.profileAvatar}>{initials}</div>
+                <div className={styles.profileName}>{user.name}</div>
+                <div className={styles.profileBadge}>🌾 Farmer</div>
+                <div className={styles.profileStats}>
+                  {[
+                    { val: "4", label: "Crops" },
+                    { val: "12", label: "Harvests" },
+                    { val: "8", label: "Deliveries" },
+                    { val: "98%", label: "On-Time" },
+                  ].map(({ val, label }) => (
+                    <div key={label} className={styles.profileStat}>
+                      <div className={styles.profileStatVal}>{val}</div>
+                      <div className={styles.profileStatLabel}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.profileForm}>
+                <div className={styles.profileFormTitle}>Edit Profile</div>
+                <div className={styles.profileFields}>
+                  <div className={styles.fieldRow}>
+                    <div className={styles.fieldGroup}>
+                      <label className={styles.fieldLabel}>Full Name</label>
+                      <input className={styles.fieldInput} defaultValue={user.name} />
+                    </div>
+                    <div className={styles.fieldGroup}>
+                      <label className={styles.fieldLabel}>Email</label>
+                      <input className={styles.fieldInput} defaultValue={user.email} type="email" />
+                    </div>
+                  </div>
+                  <div className={styles.fieldRow}>
+                    <div className={styles.fieldGroup}>
+                      <label className={styles.fieldLabel}>Phone</label>
+                      <input className={styles.fieldInput} placeholder="+234 800 000 0000" />
+                    </div>
+                    <div className={styles.fieldGroup}>
+                      <label className={styles.fieldLabel}>Location</label>
+                      <input className={styles.fieldInput} placeholder="e.g. Ibadan, Oyo" />
+                    </div>
+                  </div>
+                  <div className={styles.fieldRow}>
+                    <div className={styles.fieldGroup}>
+                      <label className={styles.fieldLabel}>Farm Size</label>
+                      <input className={styles.fieldInput} placeholder="e.g. 5 hectares" />
+                    </div>
+                    <div className={styles.fieldGroup}>
+                      <label className={styles.fieldLabel}>Soil Type</label>
+                      <input className={styles.fieldInput} placeholder="e.g. Loamy" />
+                    </div>
+                  </div>
+                  <button className={styles.saveBtn}>Save Changes</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSection === "chat" && (
+            <>
+              <div className={styles.chatArea}>
+                {isEmpty && (
+                  <div className={styles.emptyState}>
+                    <div className={styles.emptyOrb}>
+                      <RiRobot2Fill size={36} style={{ color: "#2d6a35" }} />
+                    </div>
+                    <h2 className={styles.emptyTitle}>Good morning, {firstName} 👋</h2>
+                    <p className={styles.emptySubtitle}>
+                      I'm your AgroFlow AI assistant. Ask me anything about your
+                      crops, harvest timing, soil health, weather, or deliveries.
+                    </p>
+                    <div className={styles.suggestions}>
+                      {SUGGESTIONS.map(({ icon, text }) => (
+                        <button key={text} className={styles.suggestionChip} onClick={() => send(text)}>
+                          {icon}
+                          <span>{text}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!isEmpty && (
+                  <div className={styles.messages}>
+                    {messages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`${styles.msgRow} ${msg.role === "user" ? styles.msgRowUser : styles.msgRowAI}`}
+                      >
+                        {msg.role === "ai" && (
+                          <div className={styles.msgAvatar}>
+                            <RiRobot2Fill size={16} style={{ color: "#2d6a35" }} />
+                          </div>
+                        )}
+
+                        <div
+                          className={`${styles.msgBubble} ${
+                            msg.role === "user" ? styles.msgBubbleUser : styles.msgBubbleAI
+                          } ${msg.isVoice && msg.role === "user" ? styles.msgBubbleVoice : ""}`}
+                        >
+                          {msg.isVoice && msg.role === "user" ? (
+                            <div className={styles.voiceMsgContent}>
+                              <button
+                                className={styles.playPauseBtn}
+                                onClick={() =>
+                                  handlePlayPause(
+                                    msg.id,
+                                    msg.voiceText ?? msg.text,
+                                    msg.voiceLanguage ?? "english"
+                                  )
+                                }
+                                aria-label={playingMsgId === msg.id ? "Pause" : "Play"}
+                              >
+                                {playingMsgId === msg.id ? (
+                                  <MdPauseCircle size={26} />
+                                ) : (
+                                  <MdPlayCircle size={26} />
+                                )}
+                              </button>
+                              <div
+                                className={`${styles.voiceBarWrap} ${
+                                  playingMsgId === msg.id ? styles.voiceBarActive : ""
+                                }`}
+                              >
+                                {Array.from({ length: 18 }).map((_, i) => (
+                                  <div
+                                    key={i}
+                                    className={styles.voiceBar}
+                                    style={{ animationDelay: `${i * 0.06}s` }}
+                                  />
+                                ))}
+                              </div>
+                              <span className={styles.msgTime} style={{ marginTop: 0, marginLeft: 4 }}>
+                                {msg.time}
+                              </span>
+                            </div>
+                          ) : (
+                            <>
+                              <div className={styles.msgText}>
+                                {msg.text.split("\n").map((line, i, arr) => (
+                                  <span key={i}>
+                                    {line}
+                                    {i < arr.length - 1 && <br />}
+                                  </span>
+                                ))}
+                              </div>
+
+                              {msg.role === "ai" && msg.voiceLanguage && msg.voiceText && (
+                                <button
+                                  className={`${styles.listenBtn} ${
+                                    playingMsgId === msg.id ? styles.listenBtnPlaying : ""
+                                  }`}
+                                  onClick={() =>
+                                    handlePlayPause(msg.id, msg.voiceText!, msg.voiceLanguage!)
+                                  }
+                                  aria-label={playingMsgId === msg.id ? "Pause" : "Listen"}
+                                >
+                                  {playingMsgId === msg.id ? (
+                                    <>
+                                      <MdPauseCircle size={13} />
+                                      <span>Pause</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <MdVolumeUp size={13} />
+                                      <span>Listen</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+
+                              <div className={styles.msgTime}>{msg.time}</div>
+                            </>
+                          )}
+                        </div>
+
+                        {msg.role === "user" && (
+                          <div className={`${styles.msgAvatar} ${styles.msgAvatarUser}`}>
+                            {msg.isVoice ? <RiMicLine size={14} /> : initials}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {typing && (
+                      <div className={`${styles.msgRow} ${styles.msgRowAI}`}>
                         <div className={styles.msgAvatar}>
                           <RiRobot2Fill size={16} style={{ color: "#2d6a35" }} />
                         </div>
-                      )}
-
-                      {/* ── PATCH 3: Message bubble JSX ────────────────────── */}
-                      <div className={`${styles.msgBubble} ${msg.role === "user" ? styles.msgBubbleUser : styles.msgBubbleAI} ${msg.isVoice && msg.role === 'user' ? styles.msgBubbleVoice : ''}`}>
-
-                        {msg.isVoice && msg.role === 'user' ? (
-                          /* ── USER VOICE BUBBLE — play/pause only ── */
-                          <div className={styles.voiceMsgContent}>
-                            <button
-                              className={styles.playPauseBtn}
-                              onClick={() => handlePlayPause(
-                                msg.id,
-                                msg.voiceText ?? msg.text,
-                                msg.voiceLanguage ?? 'english'
-                              )}
-                              aria-label={playingMsgId === msg.id ? 'Pause' : 'Play'}
-                            >
-                              {playingMsgId === msg.id
-                                ? <MdPauseCircle size={26} />
-                                : <MdPlayCircle  size={26} />
-                              }
-                            </button>
-                            <div className={`${styles.voiceBarWrap} ${playingMsgId === msg.id ? styles.voiceBarActive : ''}`}>
-                              {Array.from({ length: 18 }).map((_, i) => (
-                                <div key={i} className={styles.voiceBar} style={{ animationDelay: `${i * 0.06}s` }} />
-                              ))}
-                            </div>
-                            <span className={styles.msgTime} style={{ marginTop: 0, marginLeft: 4 }}>{msg.time}</span>
+                        <div className={`${styles.msgBubble} ${styles.msgBubbleAI} ${styles.typingBubble}`}>
+                          <div className={styles.typingDots}>
+                            <span />
+                            <span />
+                            <span />
                           </div>
-                        ) : (
-                          /* ── TEXT BUBBLE (text + optional listen button for AI voice replies) ── */
-                          <>
-                            <div className={styles.msgText}>
-                              {msg.text.split("\n").map((line, i, arr) => (
-                                <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
-                              ))}
-                            </div>
-
-                            {/* Listen button — only on AI messages that came from voice */}
-                            {msg.role === 'ai' && msg.voiceLanguage && msg.voiceText && (
-                              <button
-                                className={`${styles.listenBtn} ${playingMsgId === msg.id ? styles.listenBtnPlaying : ''}`}
-                                onClick={() => handlePlayPause(msg.id, msg.voiceText!, msg.voiceLanguage!)}
-                                aria-label={playingMsgId === msg.id ? 'Pause' : 'Listen'}
-                              >
-                                {playingMsgId === msg.id
-                                  ? <><MdPauseCircle size={13} /><span>Pause</span></>
-                                  : <><MdVolumeUp    size={13} /><span>Listen</span></>
-                                }
-                              </button>
-                            )}
-
-                            <div className={styles.msgTime}>{msg.time}</div>
-                          </>
-                        )}
-                      </div>
-
-                      {msg.role === "user" && (
-                        <div className={`${styles.msgAvatar} ${styles.msgAvatarUser}`}>
-                          {msg.isVoice ? <RiMicLine size={14} /> : initials}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                  {typing && (
-                    <div className={`${styles.msgRow} ${styles.msgRowAI}`}>
-                      <div className={styles.msgAvatar}>
-                        <RiRobot2Fill size={16} style={{ color: "#2d6a35" }} />
-                      </div>
-                      <div className={`${styles.msgBubble} ${styles.msgBubbleAI} ${styles.typingBubble}`}>
-                        <div className={styles.typingDots}>
-                          <span /><span /><span />
                         </div>
                       </div>
-                    </div>
-                  )}
-                  <div ref={bottomRef} />
-                </div>
-              )}
-            </div>
-
-            <div className={styles.inputWrap}>
-              {!isEmpty && (
-                <div className={styles.suggestionsRow}>
-                  {SUGGESTIONS.map(({ icon, text }) => (
-                    <button key={text} className={styles.suggestionChipSm} onClick={() => send(text)}>
-                      {icon}<span>{text}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className={styles.inputBox}>
-                <div className={`${styles.voiceWaveWrapper} ${isRecording ? styles.voiceWaveWrapperVisible : ''}`}>
-                  <VoiceWave isRecording={isRecording} audioLevel={audioLevel} />
-                </div>
-
-                <VoiceRecorder
-                  ref={voiceRecorderRef}
-                  onTranscript={handleVoiceTranscript}
-                  disabled={typing}
-                  onRecordingStateChange={setIsRecording}
-                  onProcessingStateChange={setIsProcessing}
-                  onAudioLevel={setAudioLevel}
-                />
-
-                <textarea
-                  ref={inputRef}
-                  className={`${styles.inputField} ${isRecording ? styles.inputFieldHidden : ''}`}
-                  placeholder="Ask about your crops, harvest, soil, weather…"
-                  value={input}
-                  onChange={autoResize}
-                  onKeyDown={handleKey}
-                  rows={1}
-                  wrap="soft"
-                />
-
-                {isRecording && (
-                  <button
-                    className={styles.cancelBtn}
-                    onClick={() => voiceRecorderRef.current?.cancelRecording()}
-                    aria-label="Cancel recording"
-                  >
-                    <MdClose size={20} />
-                  </button>
-                )}
-
-                {isProcessing ? (
-                  <div className={styles.spinnerBtn}>
-                    <div className={styles.spinner} />
+                    )}
+                    <div ref={bottomRef} />
                   </div>
-                ) : (input.trim() || isRecording) ? (
-                  <button
-                    className={`${styles.actionBtn} ${styles.actionBtnActive}`}
-                    onClick={() => {
-                      if (isRecording) voiceRecorderRef.current?.stopAndSend();
-                      else send(input);
-                    }}
-                    disabled={typing}
-                    aria-label="Send"
-                  >
-                    <MdSend size={18} />
-                  </button>
-                ) : (
-                  <button
-                    className={styles.actionBtn}
-                    onClick={() => voiceRecorderRef.current?.startRecording()}
-                    disabled={typing}
-                    aria-label="Record voice"
-                  >
-                    <RiMicLine size={20} />
-                  </button>
                 )}
               </div>
-              <div className={styles.inputHint}>
-                Press Enter to send · Shift+Enter for new line
+
+              <div className={styles.inputWrap}>
+                {!isEmpty && (
+                  <div className={styles.suggestionsRow}>
+                    {SUGGESTIONS.map(({ icon, text }) => (
+                      <button key={text} className={styles.suggestionChipSm} onClick={() => send(text)}>
+                        {icon}
+                        <span>{text}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className={styles.inputBox}>
+                  <div
+                    className={`${styles.voiceWaveWrapper} ${
+                      isRecording ? styles.voiceWaveWrapperVisible : ""
+                    }`}
+                  >
+                    <VoiceWave isRecording={isRecording} audioLevel={audioLevel} />
+                  </div>
+
+                  <VoiceRecorder
+                    ref={voiceRecorderRef}
+                    onTranscript={handleVoiceTranscript}
+                    disabled={typing}
+                    onRecordingStateChange={setIsRecording}
+                    onProcessingStateChange={setIsProcessing}
+                    onAudioLevel={setAudioLevel}
+                  />
+
+                  <textarea
+                    ref={inputRef}
+                    className={`${styles.inputField} ${isRecording ? styles.inputFieldHidden : ""}`}
+                    placeholder="Ask about your crops, harvest, soil, weather…"
+                    value={input}
+                    onChange={autoResize}
+                    onKeyDown={handleKey}
+                    rows={1}
+                    wrap="soft"
+                  />
+
+                  {isRecording && (
+                    <button
+                      className={styles.cancelBtn}
+                      onClick={() => voiceRecorderRef.current?.cancelRecording()}
+                      aria-label="Cancel recording"
+                    >
+                      <MdClose size={20} />
+                    </button>
+                  )}
+
+                  {isProcessing ? (
+                    <div className={styles.spinnerBtn}>
+                      <div className={styles.spinner} />
+                    </div>
+                  ) : input.trim() || isRecording ? (
+                    <button
+                      className={`${styles.actionBtn} ${styles.actionBtnActive}`}
+                      onClick={() => {
+                        if (isRecording) {
+                          voiceRecorderRef.current?.stopAndSend();
+                        } else {
+                          send(input);
+                        }
+                      }}
+                      disabled={typing}
+                      aria-label="Send"
+                    >
+                      <MdSend size={18} />
+                    </button>
+                  ) : (
+                    <button
+                      className={styles.actionBtn}
+                      onClick={() => voiceRecorderRef.current?.startRecording()}
+                      disabled={typing}
+                      aria-label="Record voice"
+                    >
+                      <RiMicLine size={20} />
+                    </button>
+                  )}
+                </div>
+                <div className={styles.inputHint}>Press Enter to send · Shift+Enter for new line</div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

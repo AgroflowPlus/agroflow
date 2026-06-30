@@ -7,6 +7,9 @@ import type {
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 const MOCK_MODE = false;
 
+// ── "Just logged in" flag key ──────────────────────────────────────────────
+const JUST_LOGGED_IN_KEY = "agf_just_logged_in";
+
 /* ── Real API request ──────────────────────────────────── */
 async function request<T>(endpoint: string, options: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${endpoint}`, {
@@ -18,7 +21,6 @@ async function request<T>(endpoint: string, options: RequestInit): Promise<T> {
     throw new Error(data.error ?? data.message ?? "Something went wrong");
   return data as T;
 }
-
 
 /* ── Auth Service ──────────────────────────────────────── */
 export const authService = {
@@ -48,6 +50,18 @@ export const authService = {
   saveSession: (res: AuthResponse) => {
     localStorage.setItem("agf_token", res.token);
     localStorage.setItem("agf_user", JSON.stringify(res.user));
+    // Mark that the user JUST logged in — dashboard reads this once
+    sessionStorage.setItem(JUST_LOGGED_IN_KEY, "1");
+  },
+
+  // Returns true exactly once per login — reading it clears it
+  consumeJustLoggedIn: (): boolean => {
+    const flag = sessionStorage.getItem(JUST_LOGGED_IN_KEY);
+    if (flag) {
+      sessionStorage.removeItem(JUST_LOGGED_IN_KEY);
+      return true;
+    }
+    return false;
   },
 
   getToken: () => localStorage.getItem("agf_token"),
@@ -64,6 +78,7 @@ export const authService = {
   clearSession: () => {
     localStorage.removeItem("agf_token");
     localStorage.removeItem("agf_user");
+    sessionStorage.removeItem(JUST_LOGGED_IN_KEY);
   },
 
   isLoggedIn: (): boolean => {

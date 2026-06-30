@@ -28,31 +28,52 @@ async function groqTranslate(
 ): Promise<string> {
   try {
     let userPrompt = "";
+ 
     if (toLang === "english") {
-      userPrompt = `Translate this ${fromLang} text to English. Return ONLY the translated text, nothing else:\n${text}`;
+      userPrompt = `Translate the following ${fromLang} text into English. The text may be long and contain multiple paragraphs or numbered points — translate all of it completely, keeping the same structure and numbering. Output ONLY the translated text with no preamble, no comments, no meta remarks.\n\n---\n${text}\n---`;
     } else if (toLang === "pidgin") {
-      userPrompt = `Translate this English text to Nigerian Pidgin English. Use words like: wan, sabi, dey, abeg, wahala, wetin. Return ONLY the translation, nothing else:\n${text}`;
+      userPrompt = `Translate the following English text into Nigerian Pidgin English. The text may be long and contain multiple paragraphs or numbered points — translate all of it completely, keeping the same structure and numbering. Use natural Pidgin words like: wan, sabi, dey, abeg, wahala, wetin, e don. Output ONLY the translated text with no preamble, no comments, no meta remarks.\n\n---\n${text}\n---`;
     } else if (toLang === "yoruba") {
-      userPrompt = `Translate this English text to Yoruba language. Return ONLY the Yoruba translation, nothing else:\n${text}`;
+      userPrompt = `Translate the following English text into Yoruba. The text may be long and contain multiple paragraphs or numbered points — translate all of it completely, keeping the same structure and numbering. Output ONLY the translated text with no preamble, no comments, no meta remarks.\n\n---\n${text}\n---`;
     }
-
+ 
     const completion = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are a translator. You only translate text. Never answer questions. Never add explanations. Return ONLY the translated text.",
+          content:
+            "You are a professional translator. You translate the full text given to you, no matter how long, completely and accurately. You never summarize, never shorten, never add commentary, and never say things like 'no text to translate' — there is always text to translate in the message you receive. Output only the translation.",
         },
         { role: "user", content: userPrompt },
       ],
       model: "llama-3.3-70b-versatile",
       temperature: 0.1,
-      max_tokens: 400,
+      max_tokens: 2048, // was 400 — too small for multi-paragraph AI responses
     });
-
-    const result = completion.choices[0]?.message?.content?.trim();
+ 
+    let result = completion.choices[0]?.message?.content?.trim();
+ 
     if (!result) throw new Error("Empty translation");
-    console.log(`✅ Translated (${fromLang}→${toLang}): "${result.substring(0, 80)}"`);
+ 
+    // Guard: if Groq returns a meta-comment instead of an actual translation,
+    // fall back to the original text rather than showing the farmer a broken reply
+    const metaPhrases = [
+      "no text to translate",
+      "there is no text",
+      "please provide",
+      "i don't see any text",
+      "i need the text",
+    ];
+    const looksLikeMeta = metaPhrases.some(p => result!.toLowerCase().includes(p));
+ 
+    if (looksLikeMeta) {
+      console.warn(`⚠️ Groq returned a meta-comment instead of translating — using original text`);
+      return text;
+    }
+ 
+    console.log(`✅ Translated (${fromLang}→${toLang}): "${result.substring(0, 80)}..."`);
     return result;
+ 
   } catch (err: any) {
     console.warn(`⚠️ Translation failed: ${err.message} — returning original`);
     return text;

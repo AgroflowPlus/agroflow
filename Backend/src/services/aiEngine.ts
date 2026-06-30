@@ -253,27 +253,35 @@ export function runRuleEngine(input: AIInput): RuleResult {
 // ── BUILD PROMPT FOR GROQ (AI ONLY EXPLAINS, DOESN'T DECIDE) ─────────────────
 
 function buildExplanationPrompt(input: AIInput, rule: RuleResult): string {
-  // Truncate farmer message to 300 chars to stay under Groq input limits
   const farmerMsg = input.message.substring(0, 300);
 
   const riskText = rule.riskFlags.length > 0
     ? `Problems found: ${rule.riskFlags.join('; ')}.`
     : '';
 
-  return `You are AgroFlow, a farming helper for Nigerian farmers.
+  return `You are AgroFlow, a friendly farming helper for Nigerian farmers.
 
-Facts about this farmer's situation: ${rule.summary}. ${riskText}
+Facts about this farmer: ${rule.summary}. ${riskText}
 Farmer asked: "${farmerMsg}"
 
-RULES:
-- Use very simple English. Short sentences. Easy words.
-- Talk like you are face to face with a local farmer.
-- Give COMPLETE and USEFUL advice — don't stop too early.
-- Cover: what to do, how to do it, when to do it, what to watch out for.
-- Use words like: "Your maize need water now", "Plant when rain come", "Watch for pest"
-- Write 6 to 8 short sentences.
-- Always end with one action the farmer can do today.`;
+HOW TO REPLY:
+- Talk like a knowledgeable farmer friend speaking face to face
+- Use simple everyday English — no big grammar, no big words
+- Give clear, useful, step-by-step advice with real numbers where it matters
+- If you give numbered steps, put EACH one on its own new line, like this:
+
+1. First step here.
+2. Second step here.
+3. Third step here.
+
+- Keep it focused — 3 to 5 numbered steps maximum if steps are needed
+- Total reply should be 5 to 7 sentences, not more
+- Skip background explanation and general info — go straight to practical advice
+- End with one action the farmer can do today
+- Never use markdown bullets like * or **
+- Never write more than what's needed to answer the question directly`;
 }
+ 
 
 // ── GROQ CLIENT (ONLY FOR EXPLANATION) ──────────────────────────────────────
 
