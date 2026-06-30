@@ -4,30 +4,40 @@ import { MdPlayCircle } from "react-icons/md";
 import { BsArrowRight } from "react-icons/bs";
 import styles from "./FarmerOnboarding.module.css";
 
+// ── Key stored in sessionStorage — set by authService.saveSession() ────────
+// and consumed (read once, cleared) by shouldShowOnboarding()
+const JUST_LOGGED_IN_KEY = "agf_just_logged_in";
 
 export function shouldShowOnboarding(): boolean {
   if (typeof window === "undefined") return false;
 
+  // Dev override
   const params = new URLSearchParams(window.location.search);
   if (params.get("onboarding") === "1") return true;
   if (params.get("onboarding") === "0") return false;
 
-  // Desktop never shows onboarding — straight to dashboard / choice modal
+  // Desktop never shows onboarding
   if (window.innerWidth >= 768) return false;
 
-  // Mobile: ALWAYS show onboarding (every visit), no localStorage check
-  return true;
+  // Mobile: only show if this is a fresh login
+  // consumeJustLoggedIn reads the flag once then clears it
+  const flag = sessionStorage.getItem(JUST_LOGGED_IN_KEY);
+  if (flag) {
+    sessionStorage.removeItem(JUST_LOGGED_IN_KEY);
+    return true;
+  }
+
+  return false;
 }
 
-// Kept as no-ops so existing calls elsewhere don't break.
-// They no longer gate anything, but harmless to leave in place.
 export function markOnboardingDone(): void {
-  // intentionally does nothing now — onboarding shows every time
+  // no-op — gating is now handled by the sessionStorage flag
 }
 
 /** Call from devtools console to reset and re-test: resetOnboarding() */
 export function resetOnboarding(): void {
-  console.log("Onboarding now always shows on mobile — nothing to reset.");
+  sessionStorage.setItem(JUST_LOGGED_IN_KEY, "1");
+  console.log("✅ Onboarding flag set. Refresh on mobile to see it.");
 }
 
 if (typeof window !== "undefined") {

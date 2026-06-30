@@ -124,14 +124,9 @@ export default function FarmerChat() {
   }>({ show: false, sessionId: null });
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // ── Onboarding (mobile, first visit) + choice modal ──────────────────────
-  // Mobile first-visit:  showOnboarding=true  →  after complete → showChoiceModal=true
-  // Desktop / returning: showOnboarding=false →  immediately    → showChoiceModal=true
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  // ── Onboarding + choice modal — computed at mount time ────────────────────
+  const [showOnboarding, setShowOnboarding] = useState(() => shouldShowOnboarding());
   const [showChoiceModal, setShowChoiceModal] = useState(false);
-
-  // ── NEW: Track if this was a fresh login ──────────────────────────────────
-  const wasJustLoggedInRef = useRef(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -152,35 +147,20 @@ export default function FarmerChat() {
     loadSessions();
   }, []);
 
-  // ── UPDATED: Onboarding + choice modal logic ──────────────────────────────
+  // ── Onboarding useEffect — only handles choice modal logic ────────────────
   useEffect(() => {
-    const justLoggedIn = authService.consumeJustLoggedIn();
-    wasJustLoggedInRef.current = justLoggedIn;
-
-    if (shouldShowOnboarding()) {
-      // Mobile + first time ever → show onboarding slides first.
-      // Choice modal will fire after onboarding completes (see handleOnboardingComplete)
-      // ONLY if this was a fresh login.
-      setShowOnboarding(true);
-    } else if (justLoggedIn) {
-      // Desktop OR returning mobile user, but freshly logged in →
-      // skip onboarding, show choice modal once.
-      setShowChoiceModal(true);
+    if (!showOnboarding) {
+      // Not showing onboarding — check if we need the choice modal
+      const justLoggedIn = authService.consumeJustLoggedIn();
+      if (justLoggedIn) setShowChoiceModal(true);
     }
-    // else: navigated here from sidebar (AI <-> Seller switch) —
-    // show neither onboarding nor choice modal, just the normal chat UI.
   }, []);
 
-  // ── UPDATED: Onboarding complete handler ──────────────────────────────────
+  // ── Onboarding complete handler ────────────────────────────────────────────
   const handleOnboardingComplete = () => {
     markOnboardingDone();
     setShowOnboarding(false);
-
-    // Re-check: was this a fresh login? (flag was already consumed above,
-    // so we use the ref to remember it across the onboarding flow)
-    if (wasJustLoggedInRef.current) {
-      setShowChoiceModal(true);
-    }
+    setShowChoiceModal(true);
   };
 
   // ── Choice modal handler ──────────────────────────────────────────────────
@@ -465,20 +445,23 @@ export default function FarmerChat() {
   };
 
   const isEmpty = messages.length === 0;
-  if (loading) return <PageLoader />;
 
   const switchToSeller = () => {
     navigate("/seller");
     addToast("Switched to Seller Mode", "success");
   };
 
+  // ── RENDER: Onboarding takes priority — shows immediately ────────────────
+  if (showOnboarding) {
+    return <FarmerOnboarding onComplete={handleOnboardingComplete} />;
+  }
+
+  if (loading) return <PageLoader />;
+
   return (
     <>
-      {/* ── STEP 1: Onboarding (mobile, first visit) ────────────────────────── */}
-      {showOnboarding && <FarmerOnboarding onComplete={handleOnboardingComplete} />}
-
       <div className={styles.shell}>
-        {/* ── STEP 2: Choice modal (AI vs Sell) ────────────────────────────── */}
+        {/* ── Choice modal ──────────────────────────────────────────────────── */}
         {showChoiceModal && (
           <div className={styles.choiceModalOverlay}>
             <div className={styles.choiceModal}>
