@@ -59,23 +59,31 @@ export default function Login() {
     setApiError('')
     if (!validate()) return
 
+    // ── FIX: Set loading TRUE immediately before navigation ────────────────
     setLoading(true)
+
     try {
       const res = await authService.login({ email, password })
       authService.saveSession(res)
 
       const role: UserRole = res.user.role as UserRole
-      if      (role === 'farmer') navigate('/farmer/dashboard')
-      else if (role === 'buyer')  navigate('/buyer/dashboard')
-      else if (role === 'seller') navigate('/seller/dashboard')
-      else                        navigate('/admin/dashboard')
+      
+      // ── FIX: Navigate with state to prevent blank gap ────────────────────
+      if      (role === 'farmer') navigate('/farmer/dashboard', { state: { fromLogin: true } })
+      else if (role === 'buyer')  navigate('/buyer/dashboard', { state: { fromLogin: true } })
+      else if (role === 'seller') navigate('/seller/dashboard', { state: { fromLogin: true } })
+      else                        navigate('/admin/dashboard', { state: { fromLogin: true } })
+      
+      // ── Keep loading true while navigating to prevent flash ──────────────
+      // The dashboard will consume the justLoggedIn flag and show onboarding/choice modal
+      
     } catch (err: unknown) {
       setApiError(
         err instanceof Error ? err.message : 'Invalid email or password.'
       )
-    } finally {
-      setLoading(false)
+      setLoading(false) // Only set loading false on error
     }
+    // ── On success, loading stays true until dashboard mounts ──────────────
   }
 
   const err = (k: string) =>
