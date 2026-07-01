@@ -6,9 +6,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: fadeOut 0.4s ease forwards;
-  animation-delay: 0.4s;
-  opacity: 1;
 }
 
 .logoWrap {
@@ -36,14 +33,9 @@
   letter-spacing: 0.5px;
 }
 
-.appName span {
-  color: #a8d832;
-}
+.appName span { color: #a8d832; }
 
-.dots {
-  display: flex;
-  gap: 6px;
-}
+.dots { display: flex; gap: 6px; }
 
 .dots span {
   width: 6px;
@@ -52,7 +44,6 @@
   background: rgba(168, 216, 50, 0.4);
   animation: bounce 0.6s ease-in-out infinite;
 }
-
 .dots span:nth-child(2) { animation-delay: 0.15s; }
 .dots span:nth-child(3) { animation-delay: 0.3s; }
 
@@ -61,12 +52,7 @@
   to   { transform: scale(1);   opacity: 1; }
 }
 
-@keyframes fadeOut {
-  from { opacity: 1; }
-  to   { opacity: 0; pointer-events: none; }
-}
-
 @keyframes bounce {
-  0%, 100% { transform: translateY(0);    background: rgba(168, 216, 50, 0.4); }
+  0%, 100% { transform: translateY(0);    background: rgba(168,216,50,0.4); }
   50%       { transform: translateY(-5px); background: #a8d832; }
 }

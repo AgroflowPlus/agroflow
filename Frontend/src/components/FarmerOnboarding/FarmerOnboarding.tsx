@@ -48,6 +48,7 @@ interface FarmerOnboardingProps {
   onComplete: () => void;
 }
 
+
 const slides = [
   {
     id: 1,
@@ -56,7 +57,7 @@ const slides = [
     headline: "Ask anything,\nanytime",
     body: "Type your questions about crop health, harvest timing, soil, or weather — in plain English or Pidgin.",
     accent: "#A8D832",
-    image: "https://images.unsplash.com/photo-1741874299706-2b8e16839aaa?fm=jpg&q=80&w=900&auto=format&fit=crop",
+    image: "/farmer1.jpg",
     overlay: "chat" as const,
   },
   {
@@ -66,7 +67,7 @@ const slides = [
     headline: "Speak it,\nhear the answer",
     body: "Record a voice note. Our AI listens, understands, and replies back to you.",
     accent: "#4A8C52",
-    image: "https://images.unsplash.com/photo-1675062022606-6352f2a972da?fm=jpg&q=80&w=900&auto=format&fit=crop",
+    image: "/farmer2.jpg",
     overlay: "voice" as const,
   },
   {
@@ -76,7 +77,7 @@ const slides = [
     headline: "Sell directly\nto buyers",
     body: "List your harvest, set your price, and connect with verified buyers — all from your farm.",
     accent: "#E07B1A",
-    image: "https://images.unsplash.com/photo-1530507629858-e4977d30e9e0?fm=jpg&q=80&w=900&auto=format&fit=crop",
+    image: "/farmer3.jpg",
     overlay: "sell" as const,
   },
 ];
