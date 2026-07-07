@@ -2812,3 +2812,28 @@ input:checked + .slider:before {
     width: 100%; /* full width on mobile for easy tap */
   }
 }
+
+.addCartBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #eaeee8;
+  background: #f7f8f5;
+  color: #6b7f6e;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.addCartBtn:hover {
+  border-color: #a8d832;
+  background: #f2f9e4;
+  color: #2d6a35;
+}
+.addCartBtnActive {
+  background: #f2f9e4;
+  border-color: #a8d832;
+  color: #2d6a35;
+}

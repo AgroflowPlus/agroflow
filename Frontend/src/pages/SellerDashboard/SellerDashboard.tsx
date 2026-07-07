@@ -9,6 +9,7 @@ import {
   RiStore3Line,
   RiShoppingBagLine,
   RiCheckDoubleLine,
+  RiAddCircleLine,
   RiBellLine,
 } from "react-icons/ri";
 import { MdOutlineMenu, MdClose } from "react-icons/md";
@@ -19,6 +20,7 @@ import {
   type Match,
   type Notification,
   type Request,
+  type Order,
 } from "../../services/marketService";
 import { authService } from "../../services/authService";
 import { useToast } from "../../context/ToastContext";
@@ -29,6 +31,7 @@ import { SectionRequests } from "../BuyerSellerDashboard/sections/SectionRequest
 import { SectionNotifications } from "../BuyerSellerDashboard/sections/SectionNotifications";
 import { SectionSettings } from "../BuyerSellerDashboard/sections/SectionSettings";
 import { SectionPostListing } from "../BuyerSellerDashboard/sections/SectionPostListing";
+import { SectionOrders } from "../BuyerSellerDashboard/sections/SectionOrders";
 import FloatingAI from "../../components/FloatingAI/FloatingAI";
 import styles from "../BuyerSellerDashboard/BuyerSellerDashboard.module.css";
 
@@ -38,7 +41,8 @@ type Section =
   | "requests"
   | "matches"
   | "notifications"
-  | "settings";
+  | "settings"
+  | "orders";
 
 export default function SellerDashboard() {
   const navigate = useNavigate();
@@ -67,6 +71,7 @@ export default function SellerDashboard() {
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [myListings, setMyListings] = useState<Listing[]>([]);
   const [myRequests, setMyRequests] = useState<Request[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [confirmModal, setConfirmModal] = useState<{
     show: boolean;
     type: "delete" | "accept" | "reject";
@@ -80,12 +85,14 @@ export default function SellerDashboard() {
 
   async function refresh() {
     try {
-      const [matchesData, myListingsData] = await Promise.all([
+      const [matchesData, myListingsData, ordersData] = await Promise.all([
         marketService.getMatches(),
         marketService.getListingsBySeller(),
+        marketService.getOrders(),
       ]);
       setMatches(matchesData);
       setMyListings(myListingsData);
+      setOrders(ordersData);
       setNotifs(marketService.getNotifications(user.id));
       setMyRequests([]);
     } catch (err) {
@@ -141,6 +148,12 @@ export default function SellerDashboard() {
       badge: matches.length,
     },
     {
+      id: "orders",
+      label: "Orders",
+      icon: <RiShoppingBagLine size={15} />,
+      badge: orders.filter((o) => o.status === "placed").length,
+    },
+    {
       id: "notifications",
       label: "Notifications",
       icon: <RiBellLine size={15} />,
@@ -149,27 +162,27 @@ export default function SellerDashboard() {
     { id: "settings", label: "Settings", icon: <RiSettings4Line size={17} /> },
   ];
 
-  const bottomNavItems: {
-    id: Section;
-    label: string;
-    icon: React.ReactNode;
-    badge?: number;
-  }[] = [
-    {
-      id: "myStore",
-      label: "Store",
-      icon: <FaStore size={20} />,
-      badge: myListings.length,
-    },
-    { id: "sell", label: "Sell", icon: <RiShoppingBagLine size={20} /> },
-    {
-      id: "requests",
-      label: "Requests",
-      icon: <RiChatCheckLine size={20} />,
-      badge: myRequests.filter((r) => r.status === "pending").length,
-    },
-    { id: "settings", label: "Settings", icon: <RiSettings4Line size={20} /> },
-  ];
+  const bottomNavItems = [
+  {
+    id: "myStore",
+    label: "Store",
+    icon: <FaStore size={20} />,
+    badge: myListings.length,
+  },
+  { id: "sell", label: "Sell", icon: <RiAddCircleLine size={20} /> },
+  {
+    id: "requests",
+    label: "Requests",
+    icon: <RiChatCheckLine size={20} />,
+    badge: myRequests.filter((r) => r.status === "pending").length,
+  },
+  {
+    id: "orders",
+    label: "Orders",
+    icon: <RiShoppingBagLine size={20} />,
+    badge: orders.filter((o) => o.status === "placed").length,
+  },
+];
 
   return (
     <>
@@ -340,6 +353,9 @@ export default function SellerDashboard() {
             {section === "matches" && (
               <SectionMatches matches={matches} userId={user.id} />
             )}
+            {section === "orders" && (
+              <SectionOrders orders={orders} role="seller" onUpdate={refresh} />
+            )}
             {section === "notifications" && (
               <SectionNotifications
                 notifs={notifs}
@@ -366,20 +382,20 @@ export default function SellerDashboard() {
             <div className={styles.bottomNavItems}>
               {bottomNavItems.map((item) => (
                 <button
-                  key={item.id}
-                  className={`${styles.bottomNavItem} ${section === item.id ? styles.bottomNavItemActive : ""}`}
-                  onClick={() => setSection(item.id)}
-                >
-                  <div className={styles.bottomNavIcon}>
-                    {item.icon}
-                    {item.badge && item.badge > 0 && (
-                      <span className={styles.bottomNavBadge}>
-                        {item.badge > 99 ? "99+" : item.badge}
-                      </span>
-                    )}
-                  </div>
-                  <span className={styles.bottomNavLabel}>{item.label}</span>
-                </button>
+  key={item.id}
+  className={`${styles.bottomNavItem} ${section === item.id ? styles.bottomNavItemActive : ""}`}
+  onClick={() => setSection(item.id as Section)}
+>
+  <div className={styles.bottomNavIcon}>
+    {item.icon}
+    {item.badge && item.badge > 0 && (
+      <span className={styles.bottomNavBadge}>
+        {item.badge > 99 ? "99+" : item.badge}
+      </span>
+    )}
+  </div>
+  <span className={styles.bottomNavLabel}>{item.label}</span>
+</button>
               ))}
             </div>
           </div>

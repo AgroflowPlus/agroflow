@@ -58,6 +58,17 @@ enum MatchStatus {
   declined
 }
 
+enum OrderStatus {
+  placed
+  accepted
+  preparing
+  transport_assigned
+  in_transit
+  delivered
+  completed
+  cancelled
+}
+
 model User {
   id           String        @id @default(cuid())
   name         String
@@ -130,6 +141,7 @@ model Buyer {
   demands  Demand[]
   requests ListingRequest[]
   matches  Match[]
+  orders   Order[]
 }
 
 model Seller {
@@ -141,6 +153,7 @@ model Seller {
 
   listings Listing[]
   matches  Match[]
+  orders   Order[]
 }
 
 model Listing {
@@ -217,6 +230,25 @@ model Match {
   matchReasons   String[]    @default([])
   aiConfidence   Float?      @default(0)
   isAIGenerated  Boolean     @default(false)
+
+  order          Order?
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  matchId         String      @unique
+  match           Match       @relation(fields: [matchId], references: [id])
+  buyerId         String
+  buyer           Buyer       @relation(fields: [buyerId], references: [id])
+  sellerId        String
+  seller          Seller      @relation(fields: [sellerId], references: [id])
+  status          OrderStatus @default(placed)
+  statusHistory   Json        @default("[]")
+  notes           String?
+  sellerConfirmed Boolean     @default(false)
+  buyerConfirmed  Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 }
 
 model Alert {
@@ -263,4 +295,3 @@ model ChatMessage {
   language  String?
   createdAt DateTime    @default(now())
 }
-

@@ -84,6 +84,19 @@ export interface Match {
   matchReasons?:  string[]     
   aiConfidence?:  number       
   isAIGenerated?: boolean      
+  order?:         Order        // Add order to Match
+}
+
+export interface Order {
+  id:             string
+  matchId:        string
+  buyerId:        string
+  sellerId:       string
+  status:         'placed' | 'accepted' | 'preparing' | 'transport_assigned' | 'in_transit' | 'delivered' | 'completed' | 'cancelled'
+  statusHistory:  Array<{ status: string; timestamp: string; note?: string }>
+  notes:          string
+  createdAt:      string
+  updatedAt:      string
 }
 
 export interface AIRecommendation {
@@ -319,6 +332,7 @@ export const marketService = {
         matchReasons:  m.matchReasons || [],
         aiConfidence:  m.aiConfidence || 0,
         isAIGenerated: m.isAIGenerated || false,
+        order:         m.order || undefined,
       }))
     } catch {
       return []
@@ -330,6 +344,32 @@ export const marketService = {
     const matches = await this.getMatches();
     // Sort by AI score descending (higher score first)
     return matches.sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0));
+  },
+
+  // ── ORDERS ──────────────────────────────────────────────────
+  async getOrders(): Promise<Order[]> {
+    try {
+      const res  = await fetch(`${BASE_URL}/orders`, { headers: authHeaders() })
+      const data = await res.json()
+      return data.orders || []
+    } catch {
+      return []
+    }
+  },
+
+  async updateOrderStatus(orderId: string, status: string, note?: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const res  = await fetch(`${BASE_URL}/orders/${orderId}/status`, {
+        method:  'PATCH',
+        headers: authHeaders(),
+        body:    JSON.stringify({ status, note })
+      })
+      const json = await res.json()
+      if (!res.ok) return { success: false, error: json.error }
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
   },
 
   // ── NOTIFICATIONS (frontend in-memory) ───────────────────

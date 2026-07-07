@@ -15,6 +15,7 @@ import {
   RiMailSendLine,
   RiHomeSmileLine,
   RiRobot2Fill,
+  RiShoppingBagLine,
 } from "react-icons/ri";
 import { MdOutlineMenu, MdClose } from "react-icons/md";
 import { FaSeedling } from "react-icons/fa";
@@ -25,6 +26,7 @@ import {
   type Match,
   type Notification,
   type CropType,
+  type Order,
 } from "../../services/marketService";
 import { authService } from "../../services/authService";
 import { useToast } from "../../context/ToastContext";
@@ -36,8 +38,11 @@ import { SectionWaitlist } from "../BuyerSellerDashboard/sections/SectionWaitlis
 import { SectionNotifications } from "../BuyerSellerDashboard/sections/SectionNotifications";
 import { SectionSettings } from "../BuyerSellerDashboard/sections/SectionSettings";
 import { SectionPostDemand } from "../BuyerSellerDashboard/sections/SectionPostDemand";
+import { SectionOrders } from "../BuyerSellerDashboard/sections/SectionOrders";
+import { SectionCart } from "../BuyerSellerDashboard/sections/SectionCart";
 import { ListingCard } from "../BuyerSellerDashboard/components/ListingCard";
 import { CROP_ICON } from "../BuyerSellerDashboard/constants";
+import { useCartStore } from "../../store/cartStore";
 import styles from "./BuyerSellerDashboard.module.css";
 
 type Section =
@@ -46,7 +51,9 @@ type Section =
   | "matches"
   | "waitlist"
   | "notifications"
-  | "settings";
+  | "settings"
+  | "orders"
+  | "cart";
 
 export default function BuyerDashboard() {
   const navigate = useNavigate();
@@ -76,6 +83,7 @@ export default function BuyerDashboard() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [waitlist, setWaitlist] = useState<Demand[]>([]);
   const [notifs, setNotifs] = useState<Notification[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [showRequestModal, setShowRequestModal] = useState<{
     listing: Listing;
@@ -93,34 +101,47 @@ export default function BuyerDashboard() {
   }>({ show: false, type: "delete" });
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-// AI Recommendations State
-const [aiRecommendations, setAIRecommendations] = useState<any[]>([]);
-const [showAIRecommendations, setShowAIRecommendations] = useState(true);
-const [showAllRecommendations, setShowAllRecommendations] = useState(false);
-const [isMobile, setIsMobile] = useState<boolean>(false);
+  // AI Recommendations State
+  const [aiRecommendations, setAIRecommendations] = useState<any[]>([]);
+  const [showAIRecommendations, setShowAIRecommendations] = useState(true);
+  const [showAllRecommendations, setShowAllRecommendations] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
 
-useEffect(() => {
-  const check = (): void => setIsMobile(window.innerWidth <= 768);
-  check();
-  window.addEventListener("resize", check);
-  return () => window.removeEventListener("resize", check);
-}, []);
-  
+  // Cart Store
+  const cartCount = useCartStore((s) => s.totalItems());
+
+  useEffect(() => {
+    const check = (): void => setIsMobile(window.innerWidth <= 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  // ── PATCH: Add polling — re-fetches listings every 30 seconds ────────────
   useEffect(() => {
     refresh();
     loadAIRecommendations();
+
+    // Poll every 30 seconds — buyer sees new listings without refreshing
+    const interval = setInterval(() => {
+      refresh();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   async function refresh() {
     try {
-      const [listingsData, matchesData, waitlistData] = await Promise.all([
+      const [listingsData, matchesData, waitlistData, ordersData] = await Promise.all([
         marketService.getListings(user.location),
         marketService.getMatches(),
         marketService.getWaitlist(),
+        marketService.getOrders(),
       ]);
       setListings(listingsData);
       setMatches(matchesData);
       setWaitlist(waitlistData);
+      setOrders(ordersData);
       setNotifs(marketService.getNotifications(user.id));
     } catch (err) {
       console.error("Refresh error:", err);
@@ -236,6 +257,18 @@ useEffect(() => {
       badge: waitlist.length,
     },
     {
+      id: "orders",
+      label: "Orders",
+      icon: <RiShoppingBagLine size={15} />,
+      badge: orders.filter((o) => o.status === "placed").length,
+    },
+    {
+      id: "cart",
+      label: "Cart",
+      icon: <RiShoppingCartLine size={15} />,
+      badge: cartCount,
+    },
+    {
       id: "notifications",
       label: "Notifications",
       icon: <RiBellLine size={15} />,
@@ -244,27 +277,27 @@ useEffect(() => {
     { id: "settings", label: "Settings", icon: <RiSettings4Line size={17} /> },
   ];
 
-  const bottomNavItems: {
-    id: Section;
-    label: string;
-    icon: React.ReactNode;
-    badge?: number;
-  }[] = [
-    { id: "marketplace", label: "Home", icon: <RiHomeSmileLine size={22} /> },
-    {
-      id: "matches",
-      label: "Matches",
-      icon: <RiCheckDoubleLine size={20} />,
-      badge: matches.length,
-    },
-    {
-      id: "waitlist",
-      label: "Waitlist",
-      icon: <RiTimeLine size={20} />,
-      badge: waitlist.length,
-    },
-    { id: "settings", label: "Settings", icon: <RiSettings4Line size={20} /> },
-  ];
+  const bottomNavItems = [
+  { id: "marketplace", label: "Home", icon: <RiHomeSmileLine size={22} /> },
+  {
+    id: "cart",
+    label: "Cart",
+    icon: <RiShoppingCartLine size={20} />,
+    badge: cartCount,
+  },
+  {
+    id: "orders",
+    label: "Orders",
+    icon: <RiShoppingBagLine size={20} />,
+    badge: orders.filter((o) => o.status === "placed").length,
+  },
+  {
+    id: "matches",
+    label: "Matches",
+    icon: <RiCheckDoubleLine size={20} />,
+    badge: matches.length,
+  },
+];
 
   const visibleRecommendations = showAllRecommendations
     ? aiListings
@@ -562,95 +595,95 @@ useEffect(() => {
         <div className={styles.content}>
           {section === "marketplace" && (
             <>
-  {/* AI RECOMMENDATIONS SECTION */}
-  {showAIRecommendations && aiListings.length > 0 && (
-    <div className={styles.aiRecommendationsSection}>
-      <div className={styles.aiSectionHeader}>
-        <div className={styles.aiHeaderLeft}>
-          <div className={styles.aiIcon}>
-            <RiRobot2Fill size={28} color="#2d6a35" />
-          </div>
-          <div>
-            <h3 className={styles.aiTitle}>
-              AI-Powered Recommendations
-            </h3>
-            <p className={styles.aiSubtitle}>
-              {aiRecommendations.length > 0 &&
-              aiRecommendations[0]?.isNewUserRecommendation
-                ? `Based on your location in ${user.location || "Akure"}`
-                : `Based on your purchase history and preferences`}
-            </p>
-          </div>
-        </div>
-        <button
-          className={styles.aiDismissBtn}
-          onClick={() => setShowAIRecommendations(false)}
-        >
-          ✕
-        </button>
-      </div>
-
-      {/* Cards */}
-      <div className={styles.marketplaceGrid}>
-        {visibleRecommendations.map((listing, index) => {
-          const rec = aiRecommendations[index];
-          return (
-            <div key={listing.id} className={styles.aiCardWrapper}>
-              {rec && (
-                <>
-                  <div className={styles.aiScoreBadge}>
-                    {rec.score}% Match
-                  </div>
-                  <div className={styles.aiImageOverlay}>
-                    <div className={styles.aiReasons}>
-                      {rec.reasons
-                        ?.slice(0, 2)
-                        .map((reason: string, idx: number) => (
-                          <span key={idx} className={styles.aiReason}>
-                            ✓ {reason}
-                          </span>
-                        ))}
+              {/* AI RECOMMENDATIONS SECTION */}
+              {showAIRecommendations && aiListings.length > 0 && (
+                <div className={styles.aiRecommendationsSection}>
+                  <div className={styles.aiSectionHeader}>
+                    <div className={styles.aiHeaderLeft}>
+                      <div className={styles.aiIcon}>
+                        <RiRobot2Fill size={28} color="#2d6a35" />
+                      </div>
+                      <div>
+                        <h3 className={styles.aiTitle}>
+                          AI-Powered Recommendations
+                        </h3>
+                        <p className={styles.aiSubtitle}>
+                          {aiRecommendations.length > 0 &&
+                          aiRecommendations[0]?.isNewUserRecommendation
+                            ? `Based on your location in ${user.location || "Akure"}`
+                            : `Based on your purchase history and preferences`}
+                        </p>
+                      </div>
                     </div>
+                    <button
+                      className={styles.aiDismissBtn}
+                      onClick={() => setShowAIRecommendations(false)}
+                    >
+                      ✕
+                    </button>
                   </div>
-                </>
+
+                  {/* Cards */}
+                  <div className={styles.marketplaceGrid}>
+                    {visibleRecommendations.map((listing, index) => {
+                      const rec = aiRecommendations[index];
+                      return (
+                        <div key={listing.id} className={styles.aiCardWrapper}>
+                          {rec && (
+                            <>
+                              <div className={styles.aiScoreBadge}>
+                                {rec.score}% Match
+                              </div>
+                              <div className={styles.aiImageOverlay}>
+                                <div className={styles.aiReasons}>
+                                  {rec.reasons
+                                    ?.slice(0, 2)
+                                    .map((reason: string, idx: number) => (
+                                      <span key={idx} className={styles.aiReason}>
+                                        ✓ {reason}
+                                      </span>
+                                    ))}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                          <ListingCard
+                            listing={listing}
+                            intent="buy"
+                            onRequestToBuy={handleRequestToBuy}
+                            onClick={handleListingClick}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Show More / Show Less */}
+                  {aiListings.length > initialCount && (
+                    <div className={styles.showMoreContainer}>
+                      <button
+                        className={styles.showMoreBtn}
+                        onClick={() => setShowAllRecommendations(!showAllRecommendations)}
+                      >
+                        {showAllRecommendations
+                          ? "Show Less ↑"
+                          : `Show More (${aiListings.length - initialCount} more) ↓`}
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
-              <ListingCard
-                listing={listing}
+
+              {/* Regular Marketplace */}
+              <SectionMarketplace
+                listings={filteredListings}
+                cropFilter={cropFilter}
+                setCropFilter={setCropFilter}
                 intent="buy"
                 onRequestToBuy={handleRequestToBuy}
-                onClick={handleListingClick}
+                onListingClick={handleListingClick}
               />
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Show More / Show Less */}
-      {aiListings.length > initialCount && (
-        <div className={styles.showMoreContainer}>
-          <button
-            className={styles.showMoreBtn}
-            onClick={() => setShowAllRecommendations(!showAllRecommendations)}
-          >
-            {showAllRecommendations
-              ? "Show Less ↑"
-              : `Show More (${aiListings.length - initialCount} more) ↓`}
-          </button>
-        </div>
-      )}
-    </div>
-  )}
-
-  {/* Regular Marketplace */}
-  <SectionMarketplace
-    listings={filteredListings}
-    cropFilter={cropFilter}
-    setCropFilter={setCropFilter}
-    intent="buy"
-    onRequestToBuy={handleRequestToBuy}
-    onListingClick={handleListingClick}
-  />
-</>
+            </>
           )}
 
           {section === "buy" && (
@@ -668,6 +701,14 @@ useEffect(() => {
           )}
 
           {section === "waitlist" && <SectionWaitlist waitlist={waitlist} />}
+
+          {section === "orders" && (
+            <SectionOrders orders={orders} role="buyer" onUpdate={refresh} />
+          )}
+
+          {section === "cart" && (
+            <SectionCart onOrderPlaced={() => setSection("orders")} />
+          )}
 
           {section === "notifications" && (
             <SectionNotifications
@@ -696,20 +737,20 @@ useEffect(() => {
           <div className={styles.bottomNavItems}>
             {bottomNavItems.map((item) => (
               <button
-                key={item.id}
-                className={`${styles.bottomNavItem} ${section === item.id ? styles.bottomNavItemActive : ""}`}
-                onClick={() => setSection(item.id)}
-              >
-                <div className={styles.bottomNavIcon}>
-                  {item.icon}
-                  {item.badge && item.badge > 0 && (
-                    <span className={styles.bottomNavBadge}>
-                      {item.badge > 99 ? "99+" : item.badge}
-                    </span>
-                  )}
-                </div>
-                <span className={styles.bottomNavLabel}>{item.label}</span>
-              </button>
+  key={item.id}
+  className={`${styles.bottomNavItem} ${section === item.id ? styles.bottomNavItemActive : ""}`}
+  onClick={() => setSection(item.id as Section)}
+>
+  <div className={styles.bottomNavIcon}>
+    {item.icon}
+    {item.badge && item.badge > 0 && (
+      <span className={styles.bottomNavBadge}>
+        {item.badge > 99 ? "99+" : item.badge}
+      </span>
+    )}
+  </div>
+  <span className={styles.bottomNavLabel}>{item.label}</span>
+</button>
             ))}
           </div>
         </div>

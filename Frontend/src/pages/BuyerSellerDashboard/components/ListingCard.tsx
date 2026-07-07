@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { RiMapPinLine } from "react-icons/ri";
 import { GiFarmer } from "react-icons/gi";
+import { MdAddShoppingCart } from "react-icons/md";
 import { CROP_ICON, CROP_CSS, getImageFallback } from "../constants";
 import styles from "../BuyerSellerDashboard.module.css";
 import type { Listing } from "../../../services/marketService";
+import { useCartStore } from '../../../store/cartStore';
 
 interface ListingCardProps {
   listing: Listing;
@@ -14,6 +16,9 @@ interface ListingCardProps {
 
 export function ListingCard({ listing, intent, onRequestToBuy, onClick }: ListingCardProps) {
   const [isMobile, setIsMobile] = useState(false);
+  const addItem = useCartStore(s => s.addItem);
+  const cartItems = useCartStore(s => s.items);
+  const inCart = cartItems.some(i => i.listing.id === listing.id);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -34,6 +39,11 @@ export function ListingCard({ listing, intent, onRequestToBuy, onClick }: Listin
   const handleRequestClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onRequestToBuy(listing);
+  };
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    addItem(listing, 1);
   };
 
   return (
@@ -102,19 +112,33 @@ export function ListingCard({ listing, intent, onRequestToBuy, onClick }: Listin
               : listing.description}
           </p>
         )}
-        {intent === "buy" && listing.status !== "sold" && (
-          <button
-            className={styles.requestBtn}
-            onClick={handleRequestClick}
-          >
-            Request to Buy
-          </button>
-        )}
-        {intent === "sell" && (
-          <button className={styles.yourListingBtn} disabled>
-            Your Listing
-          </button>
-        )}
+        
+        {/* Action Buttons */}
+        <div className={styles.cardActions}>
+          {intent === "buy" && listing.status !== "sold" && (
+            <>
+              <button
+                className={`${styles.addCartBtn} ${inCart ? styles.addCartBtnActive : ''}`}
+                onClick={handleAddToCart}
+                title={inCart ? 'Already in cart' : 'Add to cart'}
+              >
+                <MdAddShoppingCart size={16} />
+                {inCart ? 'In Cart' : 'Add to Cart'}
+              </button>
+              <button
+                className={styles.requestBtn}
+                onClick={handleRequestClick}
+              >
+                Request to Buy
+              </button>
+            </>
+          )}
+          {intent === "sell" && (
+            <button className={styles.yourListingBtn} disabled>
+              Your Listing
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

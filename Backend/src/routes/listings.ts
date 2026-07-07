@@ -46,6 +46,33 @@ const getParam = (param: string | string[] | undefined): string => {
   return Array.isArray(param) ? param[0] : param || ''
 }
 
+// ── HELPER: Create order from match ──────────────────────────
+async function createOrderFromMatch(matchId: string, buyerId: string, sellerId: string) {
+  try {
+    const order = await prisma.order.create({
+      data: {
+        matchId,
+        buyerId,
+        sellerId,
+        status: 'placed',
+        statusHistory: JSON.stringify([
+          {
+            status: 'placed',
+            timestamp: new Date().toISOString(),
+            note: 'Order placed'
+          }
+        ]),
+        notes: 'Order automatically created from match'
+      }
+    })
+    console.log(`✅ Order created for match ${matchId}: ${order.id}`)
+    return order
+  } catch (error) {
+    console.error(`❌ Failed to create order for match ${matchId}:`, error)
+    throw error
+  }
+}
+
 // Helper to ensure seller profile exists
 async function ensureSellerProfile(userId: string) {
   let seller = await prisma.seller.findUnique({
@@ -495,6 +522,15 @@ router.patch('/requests/:requestId/accept', protect, async (req: AuthRequest, re
       },
     })
 
+    // ── AUTO-CREATE ORDER WHEN REQUEST IS ACCEPTED ──────────────────────────
+    try {
+      await createOrderFromMatch(match.id, request.buyerId, request.listing.sellerId)
+    } catch (orderError) {
+      console.error('Failed to create order from match:', orderError)
+      // Don't fail the request acceptance if order creation fails
+      // Log the error but continue
+    }
+
     await sendMatchEmailToBuyer({
       buyerName:      request.buyer.user.name,
       buyerEmail:     request.buyer.user.email,
@@ -523,7 +559,7 @@ router.patch('/requests/:requestId/accept', protect, async (req: AuthRequest, re
     })
 
     res.json({
-      message: 'Request accepted. Match confirmed! Emails sent to both parties.',
+      message: 'Request accepted. Match confirmed! Order created. Emails sent to both parties.',
       match: {
         id:       match.id,
         cropType: match.cropType,
@@ -597,6 +633,7 @@ router.get('/my/matches', protect, async (req: AuthRequest, res: Response) => {
       include: {
         buyer:  { include: { user: { select: { name: true, email: true, phone: true } } } },
         seller: { include: { user: { select: { name: true, email: true, phone: true } } } },
+        order:  true, // Include the order if it exists
       },
       orderBy: { createdAt: 'desc' },
     })
