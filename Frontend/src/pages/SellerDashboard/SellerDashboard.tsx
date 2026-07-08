@@ -25,6 +25,7 @@ import {
 import { authService } from "../../services/authService";
 import { useToast } from "../../context/ToastContext";
 import { ConfirmModal } from "../../components/ConfirmModal/ConfirmModal";
+import { LoadingButton } from "../../components/LoadingButton/LoadingButton";
 import { SectionMyStore } from "../BuyerSellerDashboard/sections/SectionMyStore";
 import { SectionMatches } from "../BuyerSellerDashboard/sections/SectionMatches";
 import { SectionRequests } from "../BuyerSellerDashboard/sections/SectionRequests";
@@ -78,6 +79,7 @@ export default function SellerDashboard() {
     data?: any;
   }>({ show: false, type: "delete" });
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     refresh();
@@ -112,10 +114,17 @@ export default function SellerDashboard() {
   };
 
   const handleLogout = () => setShowLogoutConfirm(true);
-  const confirmLogout = () => {
-    authService.clearSession();
-    navigate("/login");
-    addToast("Logged out successfully", "success");
+  
+  const confirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      authService.clearSession();
+      navigate("/login");
+      addToast("Logged out successfully", "success");
+    } catch (error) {
+      addToast("Failed to log out", "error");
+      setIsLoggingOut(false);
+    }
   };
 
   const sidebarNavItems: {
@@ -163,26 +172,26 @@ export default function SellerDashboard() {
   ];
 
   const bottomNavItems = [
-  {
-    id: "myStore",
-    label: "Store",
-    icon: <FaStore size={20} />,
-    badge: myListings.length,
-  },
-  { id: "sell", label: "Sell", icon: <RiAddCircleLine size={20} /> },
-  {
-    id: "requests",
-    label: "Requests",
-    icon: <RiChatCheckLine size={20} />,
-    badge: myRequests.filter((r) => r.status === "pending").length,
-  },
-  {
-    id: "orders",
-    label: "Orders",
-    icon: <RiShoppingBagLine size={20} />,
-    badge: orders.filter((o) => o.status === "placed").length,
-  },
-];
+    {
+      id: "myStore",
+      label: "Store",
+      icon: <FaStore size={20} />,
+      badge: myListings.length,
+    },
+    { id: "sell", label: "Sell", icon: <RiAddCircleLine size={20} /> },
+    {
+      id: "requests",
+      label: "Requests",
+      icon: <RiChatCheckLine size={20} />,
+      badge: myRequests.filter((r) => r.status === "pending").length,
+    },
+    {
+      id: "orders",
+      label: "Orders",
+      icon: <RiShoppingBagLine size={20} />,
+      badge: orders.filter((o) => o.status === "placed").length,
+    },
+  ];
 
   return (
     <>
@@ -275,12 +284,14 @@ export default function SellerDashboard() {
             ))}
           </nav>
           <div className={styles.sidebarBottom}>
-            <button
+            <LoadingButton
+              loading={isLoggingOut}
               className={`${styles.sidebarBtn} ${styles.sidebarBtnDanger}`}
               onClick={handleLogout}
+              disabled={isLoggingOut}
             >
               <RiLogoutBoxRLine size={15} /> Log Out
-            </button>
+            </LoadingButton>
           </div>
         </aside>
 
@@ -382,20 +393,20 @@ export default function SellerDashboard() {
             <div className={styles.bottomNavItems}>
               {bottomNavItems.map((item) => (
                 <button
-  key={item.id}
-  className={`${styles.bottomNavItem} ${section === item.id ? styles.bottomNavItemActive : ""}`}
-  onClick={() => setSection(item.id as Section)}
->
-  <div className={styles.bottomNavIcon}>
-    {item.icon}
-    {item.badge && item.badge > 0 && (
-      <span className={styles.bottomNavBadge}>
-        {item.badge > 99 ? "99+" : item.badge}
-      </span>
-    )}
-  </div>
-  <span className={styles.bottomNavLabel}>{item.label}</span>
-</button>
+                  key={item.id}
+                  className={`${styles.bottomNavItem} ${section === item.id ? styles.bottomNavItemActive : ""}`}
+                  onClick={() => setSection(item.id as Section)}
+                >
+                  <div className={styles.bottomNavIcon}>
+                    {item.icon}
+                    {item.badge && item.badge > 0 && (
+                      <span className={styles.bottomNavBadge}>
+                        {item.badge > 99 ? "99+" : item.badge}
+                      </span>
+                    )}
+                  </div>
+                  <span className={styles.bottomNavLabel}>{item.label}</span>
+                </button>
               ))}
             </div>
           </div>

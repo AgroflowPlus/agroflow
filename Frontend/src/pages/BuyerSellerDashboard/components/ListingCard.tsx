@@ -6,6 +6,8 @@ import { CROP_ICON, CROP_CSS, getImageFallback } from "../constants";
 import styles from "../BuyerSellerDashboard.module.css";
 import type { Listing } from "../../../services/marketService";
 import { useCartStore } from '../../../store/cartStore';
+import { LoadingButton } from '../../../components/LoadingButton/LoadingButton';
+import { useToast } from '../../../context/ToastContext';
 
 interface ListingCardProps {
   listing: Listing;
@@ -16,9 +18,11 @@ interface ListingCardProps {
 
 export function ListingCard({ listing, intent, onRequestToBuy, onClick }: ListingCardProps) {
   const [isMobile, setIsMobile] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const addItem = useCartStore(s => s.addItem);
   const cartItems = useCartStore(s => s.items);
   const inCart = cartItems.some(i => i.listing.id === listing.id);
+  const { addToast } = useToast();
 
   useEffect(() => {
     const checkMobile = () => {
@@ -41,9 +45,19 @@ export function ListingCard({ listing, intent, onRequestToBuy, onClick }: Listin
     onRequestToBuy(listing);
   };
 
-  const handleAddToCart = (e: React.MouseEvent) => {
+  const handleAddToCart = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    addItem(listing, 1);
+    if (isAddingToCart) return;
+    
+    setIsAddingToCart(true);
+    try {
+      addItem(listing, 1);
+      addToast('Added to cart!', 'success');
+    } catch (error) {
+      addToast('Failed to add to cart', 'error');
+    } finally {
+      setIsAddingToCart(false);
+    }
   };
 
   return (
@@ -117,17 +131,19 @@ export function ListingCard({ listing, intent, onRequestToBuy, onClick }: Listin
         <div className={styles.cardActions}>
           {intent === "buy" && listing.status !== "sold" && (
             <>
-              <button
+              <LoadingButton
+                loading={isAddingToCart}
                 className={`${styles.addCartBtn} ${inCart ? styles.addCartBtnActive : ''}`}
                 onClick={handleAddToCart}
-                title={inCart ? 'Already in cart' : 'Add to cart'}
+                disabled={isAddingToCart}
               >
                 <MdAddShoppingCart size={16} />
                 {inCart ? 'In Cart' : 'Add to Cart'}
-              </button>
+              </LoadingButton>
               <button
                 className={styles.requestBtn}
                 onClick={handleRequestClick}
+                disabled={isAddingToCart}
               >
                 Request to Buy
               </button>

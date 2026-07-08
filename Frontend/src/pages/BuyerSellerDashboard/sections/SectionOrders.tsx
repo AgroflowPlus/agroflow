@@ -1,5 +1,7 @@
-import { marketService } from '../../../services/marketService'
-import { useToast } from '../../../context/ToastContext'
+import { useState } from 'react';
+import { marketService } from '../../../services/marketService';
+import { useToast } from '../../../context/ToastContext';
+import { LoadingButton } from '../../../components/LoadingButton/LoadingButton';
 import {
   RiCheckLine,
   RiCheckboxCircleLine,
@@ -11,10 +13,10 @@ import {
   RiShoppingBagLine,
   RiTimeLine,
   RiArrowRightLine,
-} from 'react-icons/ri'
+} from 'react-icons/ri';
 // import styles from '../BuyerSellerDashboard.module.css'
 
-const STATUS_STEPS = ['placed','accepted','preparing','transport_assigned','in_transit','delivered','completed']
+const STATUS_STEPS = ['placed','accepted','preparing','transport_assigned','in_transit','delivered','completed'];
 const STATUS_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
   placed: {
     label: 'Order Placed',
@@ -48,7 +50,7 @@ const STATUS_LABELS: Record<string, { label: string; icon: React.ReactNode }> = 
     label: 'Cancelled',
     icon: <RiCloseCircleLine size={14} />,
   },
-}
+};
 
 const SELLER_ACTIONS: Record<string, string> = {
   placed:             'accepted',
@@ -56,30 +58,39 @@ const SELLER_ACTIONS: Record<string, string> = {
   preparing:          'transport_assigned',
   transport_assigned: 'in_transit',
   in_transit:         'delivered',
-}
+};
 
 const BUYER_ACTIONS: Record<string, string> = {
   delivered: 'completed',
-}
+};
 
 interface Props {
-  orders:   any[]
-  role:     'seller' | 'buyer'
-  onUpdate: () => void
+  orders:   any[];
+  role:     'seller' | 'buyer';
+  onUpdate: () => void;
 }
 
 export function SectionOrders({ orders, role, onUpdate }: Props) {
-  const { addToast } = useToast()
+  const { addToast } = useToast();
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const advance = async (orderId: string, newStatus: string) => {
-    const result = await marketService.updateOrderStatus(orderId, newStatus)
-    if (result.success) {
-      addToast(`Order updated to: ${STATUS_LABELS[newStatus].label}`, 'success')
-      onUpdate()
-    } else {
-      addToast(result.error || 'Failed to update order', 'error')
+    setProcessingId(orderId);
+    try {
+      const result = await marketService.updateOrderStatus(orderId, newStatus);
+      if (result.success) {
+        addToast(`Order updated to: ${STATUS_LABELS[newStatus].label}`, 'success');
+        onUpdate();
+      } else {
+        addToast(result.error || 'Failed to update order', 'error');
+      }
+    } catch (error) {
+      console.error('Update order error:', error);
+      addToast('Failed to update order. Please try again.', 'error');
+    } finally {
+      setProcessingId(null);
     }
-  }
+  };
 
   if (orders.length === 0) {
     return (
@@ -88,7 +99,7 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>No orders yet</div>
         <div style={{ fontSize: 13 }}>Orders will appear here when buyers purchase your produce</div>
       </div>
-    )
+    );
   }
 
   return (
@@ -98,16 +109,17 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
       </h2>
 
       {orders.map(order => {
-        const currentStep = STATUS_STEPS.indexOf(order.status)
+        const currentStep = STATUS_STEPS.indexOf(order.status);
         const history = typeof order.statusHistory === 'string'
           ? JSON.parse(order.statusHistory)
-          : order.statusHistory || []
+          : order.statusHistory || [];
 
         const nextStatus = role === 'seller'
           ? SELLER_ACTIONS[order.status]
-          : BUYER_ACTIONS[order.status]
+          : BUYER_ACTIONS[order.status];
 
-        const statusInfo = STATUS_LABELS[order.status] || { label: order.status, icon: null }
+        const statusInfo = STATUS_LABELS[order.status] || { label: order.status, icon: null };
+        const isProcessing = processingId === order.id;
 
         return (
           <div key={order.id} style={{
@@ -116,6 +128,8 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
             borderRadius: 16,
             padding: 20,
             boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            opacity: isProcessing ? 0.7 : 1,
+            transition: 'opacity 0.2s ease',
           }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
@@ -171,7 +185,7 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
             {/* Status history */}
             <div style={{ marginBottom: 16 }}>
               {history.slice(-3).map((h: any, i: number) => {
-                const hStatusInfo = STATUS_LABELS[h.status] || { label: h.status, icon: null }
+                const hStatusInfo = STATUS_LABELS[h.status] || { label: h.status, icon: null };
                 return (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6b7f6e', marginBottom: 4 }}>
                     <span style={{ color: '#a8d832' }}><RiCheckLine size={12} /></span>
@@ -181,14 +195,16 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
                       {new Date(h.timestamp).toLocaleDateString()}
                     </span>
                   </div>
-                )
+                );
               })}
             </div>
 
             {/* Action button */}
             {nextStatus && order.status !== 'cancelled' && (
-              <button
+              <LoadingButton
+                loading={isProcessing}
                 onClick={() => advance(order.id, nextStatus)}
+                disabled={isProcessing}
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -198,7 +214,7 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
                   border: 'none',
                   fontWeight: 700,
                   fontSize: 14,
-                  cursor: 'pointer',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -206,7 +222,7 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
                 }}
               >
                 Mark as: {STATUS_LABELS[nextStatus]?.icon} {STATUS_LABELS[nextStatus]?.label}
-              </button>
+              </LoadingButton>
             )}
 
             {order.status === 'completed' && (
@@ -216,8 +232,8 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
               </div>
             )}
           </div>
-        )
+        );
       })}
     </div>
-  )
+  );
 }

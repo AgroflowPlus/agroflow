@@ -4,6 +4,7 @@ import { MdCameraAlt } from "react-icons/md";
 import { BsArrowRight } from "react-icons/bs";
 import { useToast } from "../../../context/ToastContext";
 import { CustomSelect } from "../../../components/CustomSelect/CustomSelect";
+import { LoadingButton } from "../../../components/LoadingButton/LoadingButton";
 import { marketService, AKURE_AREAS, type CropType } from "../../../services/marketService";
 import { CROPS } from "../constants";
 import styles from "../BuyerSellerDashboard.module.css";
@@ -80,21 +81,25 @@ export function SectionPostListing({ onSuccess }: SectionPostListingProps) {
     if (!validate()) return;
     setLoading(true);
 
-    const result = await marketService.postListing({
-      cropType: form.cropType,
-      quantity: Number(form.quantity),
-      location: form.location,
-      description: form.description,
-      photoUrl: form.photoUrl || undefined,
-    });
+    try {
+      const result = await marketService.postListing({
+        cropType: form.cropType,
+        quantity: Number(form.quantity),
+        location: form.location,
+        description: form.description,
+        photoUrl: form.photoUrl || undefined,
+      });
 
-    if (!result.success) {
-      addToast(result.error || "Failed to post listing", "error");
+      if (!result.success) {
+        addToast(result.error || "Failed to post listing", "error");
+        return;
+      }
+      onSuccess();
+    } catch (error) {
+      addToast("An error occurred while posting", "error");
+    } finally {
       setLoading(false);
-      return;
     }
-    setLoading(false);
-    onSuccess();
   };
 
   return (
@@ -193,15 +198,15 @@ export function SectionPostListing({ onSuccess }: SectionPostListingProps) {
               <span className={styles.fieldErrMsg}>{errors.description}</span>
             )}
           </div>
-          <button className={styles.formSubmitBtn} type="submit" disabled={loading}>
-            {loading ? (
-              <> Posting...</>
-            ) : (
-              <>
-                Post Listing <BsArrowRight size={14} />
-              </>
-            )}
-          </button>
+          <LoadingButton
+            loading={loading}
+            className={`${styles.formSubmitBtn} w-full`}
+            onClick={handleSubmit}
+            type="submit"
+          >
+            {loading ? 'Posting...' : 'Post Listing'}
+            {!loading && <BsArrowRight size={14} />}
+          </LoadingButton>
         </div>
       </form>
     </div>

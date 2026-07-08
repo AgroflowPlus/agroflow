@@ -43,6 +43,7 @@ import { SectionCart } from "../BuyerSellerDashboard/sections/SectionCart";
 import { ListingCard } from "../BuyerSellerDashboard/components/ListingCard";
 import { CROP_ICON } from "../BuyerSellerDashboard/constants";
 import { useCartStore } from "../../store/cartStore";
+import { LoadingButton } from "../../components/LoadingButton/LoadingButton";
 import styles from "./BuyerSellerDashboard.module.css";
 
 type Section =
@@ -100,6 +101,7 @@ export default function BuyerDashboard() {
     data?: any;
   }>({ show: false, type: "delete" });
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [submittingRequest, setSubmittingRequest] = useState(false);
 
   // AI Recommendations State
   const [aiRecommendations, setAIRecommendations] = useState<any[]>([]);
@@ -173,30 +175,35 @@ export default function BuyerDashboard() {
   };
 
   const submitRequest = async () => {
-    const qty = Number(requestQty);
-    if (!showRequestModal) return;
-    if (qty <= 0 || qty > showRequestModal.listing.remainingQty) {
-      addToast(
-        `Please enter a valid quantity (max ${showRequestModal.listing.remainingQty}kg)`,
-        "error",
+    setSubmittingRequest(true);
+    try {
+      const qty = Number(requestQty);
+      if (!showRequestModal) return;
+      if (qty <= 0 || qty > showRequestModal.listing.remainingQty) {
+        addToast(
+          `Please enter a valid quantity (max ${showRequestModal.listing.remainingQty}kg)`,
+          "error",
+        );
+        return;
+      }
+      const result = await marketService.createRequest(
+        showRequestModal.listing.id,
+        qty,
+        requestMsg ||
+          `I would like to buy ${qty}kg of your ${showRequestModal.listing.cropType}`,
+        user.location || "Ijapo Estate",
       );
-      return;
+      if (!result.success) {
+        addToast(result.error || "Failed to send request", "error");
+        return;
+      }
+      setShowRequestModal(null);
+      setModal({ type: "requestSent", data: result.request });
+      refresh();
+      addToast("Request sent successfully!", "success");
+    } finally {
+      setSubmittingRequest(false);
     }
-    const result = await marketService.createRequest(
-      showRequestModal.listing.id,
-      qty,
-      requestMsg ||
-        `I would like to buy ${qty}kg of your ${showRequestModal.listing.cropType}`,
-      user.location || "Ijapo Estate",
-    );
-    if (!result.success) {
-      addToast(result.error || "Failed to send request", "error");
-      return;
-    }
-    setShowRequestModal(null);
-    setModal({ type: "requestSent", data: result.request });
-    refresh();
-    addToast("Request sent successfully!", "success");
   };
 
   const handleLogout = () => setShowLogoutConfirm(true);
@@ -278,26 +285,26 @@ export default function BuyerDashboard() {
   ];
 
   const bottomNavItems = [
-  { id: "marketplace", label: "Home", icon: <RiHomeSmileLine size={22} /> },
-  {
-    id: "cart",
-    label: "Cart",
-    icon: <RiShoppingCartLine size={20} />,
-    badge: cartCount,
-  },
-  {
-    id: "orders",
-    label: "Orders",
-    icon: <RiShoppingBagLine size={20} />,
-    badge: orders.filter((o) => o.status === "placed").length,
-  },
-  {
-    id: "matches",
-    label: "Matches",
-    icon: <RiCheckDoubleLine size={20} />,
-    badge: matches.length,
-  },
-];
+    { id: "marketplace", label: "Home", icon: <RiHomeSmileLine size={22} /> },
+    {
+      id: "cart",
+      label: "Cart",
+      icon: <RiShoppingCartLine size={20} />,
+      badge: cartCount,
+    },
+    {
+      id: "orders",
+      label: "Orders",
+      icon: <RiShoppingBagLine size={20} />,
+      badge: orders.filter((o) => o.status === "placed").length,
+    },
+    {
+      id: "matches",
+      label: "Matches",
+      icon: <RiCheckDoubleLine size={20} />,
+      badge: matches.length,
+    },
+  ];
 
   const visibleRecommendations = showAllRecommendations
     ? aiListings
@@ -421,15 +428,17 @@ export default function BuyerDashboard() {
               </div>
             </div>
             <div className={styles.modalBtns}>
-              <button
+              <LoadingButton
+                loading={submittingRequest}
                 className={styles.modalBtnPrimary}
                 onClick={submitRequest}
               >
                 <RiMailSendLine size={16} /> Send Request
-              </button>
+              </LoadingButton>
               <button
                 className={styles.modalBtnOutline}
                 onClick={() => setShowRequestModal(null)}
+                disabled={submittingRequest}
               >
                 Cancel
               </button>
@@ -737,20 +746,20 @@ export default function BuyerDashboard() {
           <div className={styles.bottomNavItems}>
             {bottomNavItems.map((item) => (
               <button
-  key={item.id}
-  className={`${styles.bottomNavItem} ${section === item.id ? styles.bottomNavItemActive : ""}`}
-  onClick={() => setSection(item.id as Section)}
->
-  <div className={styles.bottomNavIcon}>
-    {item.icon}
-    {item.badge && item.badge > 0 && (
-      <span className={styles.bottomNavBadge}>
-        {item.badge > 99 ? "99+" : item.badge}
-      </span>
-    )}
-  </div>
-  <span className={styles.bottomNavLabel}>{item.label}</span>
-</button>
+                key={item.id}
+                className={`${styles.bottomNavItem} ${section === item.id ? styles.bottomNavItemActive : ""}`}
+                onClick={() => setSection(item.id as Section)}
+              >
+                <div className={styles.bottomNavIcon}>
+                  {item.icon}
+                  {item.badge && item.badge > 0 && (
+                    <span className={styles.bottomNavBadge}>
+                      {item.badge > 99 ? "99+" : item.badge}
+                    </span>
+                  )}
+                </div>
+                <span className={styles.bottomNavLabel}>{item.label}</span>
+              </button>
             ))}
           </div>
         </div>
