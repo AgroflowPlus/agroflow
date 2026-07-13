@@ -11,6 +11,7 @@ import {
   RiCheckDoubleLine,
   RiAddCircleLine,
   RiBellLine,
+  RiDashboardLine,
 } from "react-icons/ri";
 import { MdOutlineMenu, MdClose } from "react-icons/md";
 import { FaStore } from "react-icons/fa";
@@ -26,6 +27,7 @@ import { authService } from "../../services/authService";
 import { useToast } from "../../context/ToastContext";
 import { ConfirmModal } from "../../components/ConfirmModal/ConfirmModal";
 import { LoadingButton } from "../../components/LoadingButton/LoadingButton";
+import { SectionDashboard } from "../BuyerSellerDashboard/sections/SectionDashboard";
 import { SectionMyStore } from "../BuyerSellerDashboard/sections/SectionMyStore";
 import { SectionMatches } from "../BuyerSellerDashboard/sections/SectionMatches";
 import { SectionRequests } from "../BuyerSellerDashboard/sections/SectionRequests";
@@ -37,6 +39,7 @@ import FloatingAI from "../../components/FloatingAI/FloatingAI";
 import styles from "../BuyerSellerDashboard/BuyerSellerDashboard.module.css";
 
 type Section =
+  | "dashboard"
   | "myStore"
   | "sell"
   | "requests"
@@ -66,7 +69,7 @@ export default function SellerDashboard() {
       .map((n: string) => n[0])
       .join("")
       .toUpperCase() ?? "SE";
-  const [section, setSection] = useState<Section>("myStore");
+  const [section, setSection] = useState<Section>("dashboard");
   const [sidebarOpen, setSidebar] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
   const [notifs, setNotifs] = useState<Notification[]>([]);
@@ -134,6 +137,11 @@ export default function SellerDashboard() {
     badge?: number;
   }[] = [
     {
+      id: "dashboard",
+      label: "Dashboard",
+      icon: <RiDashboardLine size={15} />,
+    },
+    {
       id: "myStore",
       label: "My Store",
       icon: <FaStore size={15} />,
@@ -172,6 +180,11 @@ export default function SellerDashboard() {
   ];
 
   const bottomNavItems = [
+    {
+      id: "dashboard",
+      label: "Home",
+      icon: <RiDashboardLine size={20} />,
+    },
     {
       id: "myStore",
       label: "Store",
@@ -341,6 +354,14 @@ export default function SellerDashboard() {
           </div>
 
           <div className={styles.content}>
+            {section === "dashboard" && (
+              <SectionDashboard
+                listings={myListings}
+                orders={orders}
+                requests={myRequests}
+                matches={matches}
+              />
+            )}
             {section === "myStore" && (
               <SectionMyStore listings={myListings} onRefresh={refresh} />
             )}
