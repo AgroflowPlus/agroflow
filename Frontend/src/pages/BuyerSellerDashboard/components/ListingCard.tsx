@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { RiMapPinLine } from "react-icons/ri";
 import { GiFarmer } from "react-icons/gi";
-import { MdAddShoppingCart } from "react-icons/md";
+import { MdAddShoppingCart, MdFavorite, MdFavoriteBorder } from "react-icons/md";
 import { CROP_ICON, CROP_CSS, getImageFallback } from "../constants";
 import styles from "../BuyerSellerDashboard.module.css";
 import type { Listing } from "../../../services/marketService";
 import { useCartStore } from '../../../store/cartStore';
+import { useFavoritesStore } from '../../../store/favoritesStore';
 import { LoadingButton } from '../../../components/LoadingButton/LoadingButton';
 import { useToast } from '../../../context/ToastContext';
 
@@ -22,6 +23,9 @@ export function ListingCard({ listing, intent, onRequestToBuy, onClick }: Listin
   const addItem = useCartStore(s => s.addItem);
   const cartItems = useCartStore(s => s.items);
   const inCart = cartItems.some(i => i.listing.id === listing.id);
+  const { toggleListing, isLiked, isFollowing, followSeller, unfollowSeller } = useFavoritesStore();
+  const liked = isLiked(listing.id);
+  const following = isFollowing(listing.sellerId);
   const { addToast } = useToast();
 
   useEffect(() => {
@@ -60,11 +64,66 @@ export function ListingCard({ listing, intent, onRequestToBuy, onClick }: Listin
     }
   };
 
+  const handleFavoriteToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    toggleListing(listing.id);
+    addToast(
+      liked ? 'Removed from favorites' : 'Added to favorites',
+      'success'
+    );
+  };
+
+  const handleFollowToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (following) {
+      unfollowSeller(listing.sellerId);
+      addToast('Unfollowed seller', 'info');
+    } else {
+      followSeller(listing.sellerId);
+      addToast('Following seller!', 'success');
+    }
+  };
+
   return (
     <div 
       className={`${styles.marketplaceCard} ${isMobile ? styles.clickable : ''}`} 
       onClick={handleCardClick}
+      style={{ position: 'relative' }}
     >
+      {/* Favorite Button */}
+      <button
+        onClick={handleFavoriteToggle}
+        style={{
+          position: 'absolute',
+          top: 10,
+          right: 10,
+          background: 'white',
+          border: 'none',
+          borderRadius: '50%',
+          width: 32,
+          height: 32,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+          zIndex: 1,
+          transition: 'transform 0.2s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.1)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+        }}
+        aria-label={liked ? 'Remove from favorites' : 'Add to favorites'}
+      >
+        {liked
+          ? <MdFavorite size={18} color="#e05252" />
+          : <MdFavoriteBorder size={18} color="#9ead9f" />
+        }
+      </button>
+
       <div className={styles.cardPhoto}>
         {listing.photoUrl ? (
           <img
@@ -108,6 +167,41 @@ export function ListingCard({ listing, intent, onRequestToBuy, onClick }: Listin
             </div>
           </div>
         </div>
+        
+        {/* Follow Button */}
+        {intent === "buy" && (
+          <button
+            onClick={handleFollowToggle}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '4px 10px',
+              borderRadius: 8,
+              border: `1.5px solid ${following ? '#a8d832' : '#eaeee8'}`,
+              background: following ? '#f2f9e4' : 'transparent',
+              color: following ? '#2d6a35' : '#9ead9f',
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginTop: 6,
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              if (!following) {
+                e.currentTarget.style.background = '#f7f8f5';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!following) {
+                e.currentTarget.style.background = 'transparent';
+              }
+            }}
+          >
+            {following ? '✓ Following' : '+ Follow Seller'}
+          </button>
+        )}
+
         <div className={styles.produceStats}>
           <div className={styles.statItem}>
             <span className={styles.statValue}>{listing.remainingQty}kg</span>

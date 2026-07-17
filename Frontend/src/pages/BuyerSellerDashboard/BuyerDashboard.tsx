@@ -17,7 +17,7 @@ import {
   RiRobot2Fill,
   RiShoppingBagLine,
 } from "react-icons/ri";
-import { MdOutlineMenu, MdClose } from "react-icons/md";
+import { MdOutlineMenu, MdClose, MdFavorite } from "react-icons/md";
 import { FaSeedling } from "react-icons/fa";
 import {
   marketService,
@@ -40,11 +40,16 @@ import { SectionSettings } from "../BuyerSellerDashboard/sections/SectionSetting
 import { SectionPostDemand } from "../BuyerSellerDashboard/sections/SectionPostDemand";
 import { SectionOrders } from "../BuyerSellerDashboard/sections/SectionOrders";
 import { SectionCart } from "../BuyerSellerDashboard/sections/SectionCart";
+import { SectionFavorites } from "../BuyerSellerDashboard/sections/SectionFavorites";
+import { SectionFollowing } from "../BuyerSellerDashboard/sections/SectionFollowing";
 import { ListingCard } from "../BuyerSellerDashboard/components/ListingCard";
 import { CROP_ICON } from "../BuyerSellerDashboard/constants";
 import { useCartStore } from "../../store/cartStore";
+import { useFavoritesStore } from "../../store/favoritesStore";
 import { LoadingButton } from "../../components/LoadingButton/LoadingButton";
 import styles from "./BuyerSellerDashboard.module.css";
+
+const BASE_URL = import.meta.env.VITE_API_URL || "https://ai-farmer-platform-backend-code.onrender.com/api";
 
 type Section =
   | "marketplace"
@@ -54,7 +59,9 @@ type Section =
   | "notifications"
   | "settings"
   | "orders"
-  | "cart";
+  | "cart"
+  | "saved"
+  | "following";
 
 export default function BuyerDashboard() {
   const navigate = useNavigate();
@@ -85,6 +92,7 @@ export default function BuyerDashboard() {
   const [waitlist, setWaitlist] = useState<Demand[]>([]);
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [followedSellers, setFollowedSellers] = useState<any[]>([]);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [showRequestModal, setShowRequestModal] = useState<{
     listing: Listing;
@@ -112,6 +120,9 @@ export default function BuyerDashboard() {
   // Cart Store
   const cartCount = useCartStore((s) => s.totalItems());
 
+  // Favorites Store
+  const { listingIds, sellerIds } = useFavoritesStore();
+
   useEffect(() => {
     const check = (): void => setIsMobile(window.innerWidth <= 768);
     check();
@@ -123,6 +134,7 @@ export default function BuyerDashboard() {
   useEffect(() => {
     refresh();
     loadAIRecommendations();
+    fetchFollowedSellers();
 
     // Poll every 30 seconds — buyer sees new listings without refreshing
     const interval = setInterval(() => {
@@ -131,6 +143,11 @@ export default function BuyerDashboard() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch followed sellers when sellerIds change
+  useEffect(() => {
+    fetchFollowedSellers();
+  }, [sellerIds]);
 
   async function refresh() {
     try {
@@ -159,6 +176,47 @@ export default function BuyerDashboard() {
       }
     } catch (error) {
       console.error("Error loading recommendations:", error);
+    }
+  };
+
+  const fetchFollowedSellers = async () => {
+    try {
+      if (sellerIds.length === 0) {
+        setFollowedSellers([]);
+        return;
+      }
+
+      // Get token for authorization
+      const token = localStorage.getItem("agf_token");
+      if (!token) {
+        setFollowedSellers([]);
+        return;
+      }
+
+      // Fetch each seller's details
+      const sellersData = await Promise.all(
+        sellerIds.map(async (sellerId) => {
+          try {
+            const res = await fetch(`${BASE_URL}/users/${sellerId}`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+            if (res.ok) {
+              const data = await res.json();
+              return data.user || data;
+            }
+            return null;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      setFollowedSellers(sellersData.filter(Boolean));
+    } catch (error) {
+      console.error("Failed to fetch followed sellers:", error);
+      setFollowedSellers([]);
     }
   };
 
@@ -276,6 +334,18 @@ export default function BuyerDashboard() {
       badge: cartCount,
     },
     {
+      id: "saved",
+      label: "Saved",
+      icon: <MdFavorite size={15} />,
+      badge: listingIds.length,
+    },
+    {
+      id: "following",
+      label: "Following",
+      icon: <RiUserLine size={15} />,
+      badge: followedSellers.length,
+    },
+    {
       id: "notifications",
       label: "Notifications",
       icon: <RiBellLine size={15} />,
@@ -299,10 +369,10 @@ export default function BuyerDashboard() {
       badge: orders.filter((o) => o.status === "placed").length,
     },
     {
-      id: "matches",
-      label: "Matches",
-      icon: <RiCheckDoubleLine size={20} />,
-      badge: matches.length,
+      id: "saved",
+      label: "Saved",
+      icon: <MdFavorite size={20} />,
+      badge: listingIds.length,
     },
   ];
 
@@ -717,6 +787,18 @@ export default function BuyerDashboard() {
 
           {section === "cart" && (
             <SectionCart onOrderPlaced={() => setSection("orders")} />
+          )}
+
+          {section === "saved" && (
+            <SectionFavorites
+              listings={listings}
+              onRequestToBuy={handleRequestToBuy}
+              onListingClick={setSelectedListing}
+            />
+          )}
+
+          {section === "following" && (
+            <SectionFollowing sellers={followedSellers} />
           )}
 
           {section === "notifications" && (
