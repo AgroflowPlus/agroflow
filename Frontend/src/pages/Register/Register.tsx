@@ -80,6 +80,7 @@ export default function Register() {
     password: "",
     location: "", // Add location field
   });
+const [step] = useState (0)
 
   useEffect(() => {
     getContentImages().then((imgs) => {
@@ -131,10 +132,20 @@ export default function Register() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log('🔥 Submit fired, step:', step, { fullName: form.fullName, email: form.email, password: form.password, role: tab, phone: form.phone, location: form.location })
     e.preventDefault();
     setApiError("");
-    if (!validate()) return;
+    
+    console.log('📝 Step 1: Validating form...');
+    if (!validate()) {
+      console.log('❌ Validation failed:', errors);
+      return;
+    }
+    console.log('✅ Validation passed');
+    
     setLoading(true);
+    console.log('⏳ Loading started');
+
     try {
       const role = tab;
       const payload: RegisterPayload = {
@@ -145,25 +156,44 @@ export default function Register() {
         role,
         location: form.location,
       };
+      
+      console.log('📤 Sending registration request:', { 
+        email: payload.email, 
+        role: payload.role,
+        location: payload.location 
+      });
+      
       const res = await authService.register(payload);
+      
+      console.log('✅ Registration successful:', { 
+        email: res.user.email, 
+        role: res.user.role,
+        id: res.user.id 
+      });
+      
       authService.saveSession(res);
       const userRole = res.user.role as UserRole;
 
       // Redirect based on role
       if (userRole === "farmer") {
+        console.log('🚀 Redirecting to /farmer');
         navigate("/farmer");
       } else if (userRole === "buyer") {
+        console.log('🚀 Redirecting to /buyer');
         navigate("/buyer");
       } else {
-        navigate("/farmer"); // fallback
+        console.log('🚀 Redirecting to /farmer (fallback)');
+        navigate("/farmer");
       }
     } catch (err: unknown) {
+      console.error('❌ Registration error:', err);
       setApiError(
         err instanceof Error
           ? err.message
           : "Registration failed. Please try again.",
       );
     } finally {
+      console.log('🏁 Registration process complete');
       setLoading(false);
     }
   };

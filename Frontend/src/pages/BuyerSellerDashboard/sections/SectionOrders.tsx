@@ -73,6 +73,10 @@ interface Props {
 export function SectionOrders({ orders, role, onUpdate }: Props) {
   const { addToast } = useToast();
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [reviewingOrder, setReviewingOrder] = useState<any>(null);
+  const [rating, setRating] = useState<number>(5);
+  const [comment, setComment] = useState<string>('');
+  const [submitting, setSubmitting] = useState<boolean>(false);
 
   const advance = async (orderId: string, newStatus: string) => {
     setProcessingId(orderId);
@@ -89,6 +93,28 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
       addToast('Failed to update order. Please try again.', 'error');
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const submitReview = async () => {
+    if (!reviewingOrder) return;
+    setSubmitting(true);
+    try {
+      const result = await marketService.submitReview(reviewingOrder.id, rating, comment);
+      if (result.success) {
+        addToast('Review submitted! Thank you.', 'success');
+        setReviewingOrder(null);
+        setRating(5);
+        setComment('');
+        onUpdate();
+      } else {
+        addToast(result.error || 'Failed to submit review', 'error');
+      }
+    } catch (error) {
+      console.error('Submit review error:', error);
+      addToast('Failed to submit review. Please try again.', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -226,14 +252,152 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
             )}
 
             {order.status === 'completed' && (
-              <div style={{ textAlign: 'center', color: '#2d6a35', fontWeight: 600, fontSize: 13 }}>
-                <RiCheckboxCircleLine size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                Order completed successfully!
+              <div>
+                <div style={{ textAlign: 'center', color: '#2d6a35', fontWeight: 600, fontSize: 13 }}>
+                  <RiCheckboxCircleLine size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                  Order completed successfully!
+                </div>
+                
+                {/* Review Button - Only show for buyers if no review exists */}
+                {role === 'buyer' && !order.review && (
+                  <button
+                    onClick={() => setReviewingOrder(order)}
+                    style={{
+                      marginTop: 8,
+                      width: '100%',
+                      padding: 10,
+                      borderRadius: 10,
+                      border: '1.5px solid #a8d832',
+                      background: 'transparent',
+                      color: '#2d6a35',
+                      fontWeight: 600,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#f2f9e4';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    ⭐ Leave a Review
+                  </button>
+                )}
               </div>
             )}
           </div>
         );
       })}
+
+      {/* Review Modal */}
+      {reviewingOrder && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: 20,
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 20,
+            padding: 24,
+            width: '100%',
+            maxWidth: 400,
+          }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>
+              Rate your experience
+            </h3>
+
+            {/* Star rating */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, justifyContent: 'center' }}>
+              {[1, 2, 3, 4, 5].map(star => (
+                <button
+                  key={star}
+                  onClick={() => setRating(star)}
+                  style={{
+                    fontSize: 32,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    opacity: star <= rating ? 1 : 0.3,
+                    transition: 'transform 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                >
+                  ⭐
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder="Share your experience (optional)..."
+              style={{
+                width: '100%',
+                padding: 12,
+                borderRadius: 10,
+                border: '1.5px solid #eaeee8',
+                fontSize: 13,
+                resize: 'none',
+                height: 80,
+                boxSizing: 'border-box',
+                outline: 'none',
+                fontFamily: 'inherit',
+              }}
+            />
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button
+                onClick={() => {
+                  setReviewingOrder(null);
+                  setRating(5);
+                  setComment('');
+                }}
+                style={{
+                  flex: 1,
+                  padding: 12,
+                  borderRadius: 10,
+                  border: '1.5px solid #eaeee8',
+                  background: '#f7f8f5',
+                  color: '#6b7f6e',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <LoadingButton
+                loading={submitting}
+                onClick={submitReview}
+                style={{
+                  flex: 1,
+                  padding: 12,
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#a8d832',
+                  color: '#141f15',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Submit Review
+              </LoadingButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

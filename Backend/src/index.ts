@@ -14,6 +14,8 @@ import buyerRoutes from './routes/buyers';
 import roleRoutes from './routes/role';
 import voiceRoutes from './routes/voice';
 import ordersRouter from './routes/orders'
+import reviewsRouter from './routes/reviews'
+import prisma from './db/index'
 
 if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
@@ -48,10 +50,8 @@ app.get("/health", (_req, res) => {
   res.json({ status: "AgroFlow+ backend is running", timestamp: new Date() });
 });
 
-
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
-
 
 app.use("/api/auth", authRoutes);
 app.use("/api/farmers", farmerRoutes);
@@ -66,6 +66,7 @@ app.use('/api/buyers', buyerRoutes);
 app.use('/api/role', roleRoutes);
 app.use('/api/voice', voiceRoutes);
 app.use('/api/orders', ordersRouter)
+app.use('/api/reviews', reviewsRouter)
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Route not found" });
@@ -84,5 +85,21 @@ app.use((
 app.listen(PORT, () => {
   console.log(`🌱 AgroFlow+ backend running on http://localhost:${PORT}`);
 });
+
+// Test database connection on startup
+prisma.$connect()
+  .then(() => console.log('✅ Database connected'))
+  .catch((e) => console.error('❌ Database connection failed:', e.message))
+
+// ── Global Error Handlers ──────────────────────────────────
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err)
+})
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason)
+})
+
+process.stdin.resume() // Keep process alive
 
 export default app;

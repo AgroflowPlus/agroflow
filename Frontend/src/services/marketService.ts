@@ -372,6 +372,31 @@ export const marketService = {
     }
   },
 
+  // ── REVIEWS ──────────────────────────────────────────────────
+  async submitReview(orderId: string, rating: number, comment?: string) {
+    try {
+      const res = await fetch(`${BASE_URL}/reviews`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ orderId, rating, comment })
+      })
+      const data = await res.json()
+      return { success: res.ok, data, error: data.error }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
+  },
+
+  async getSellerReviews(sellerId: string) {
+    try {
+      const res  = await fetch(`${BASE_URL}/reviews/seller/${sellerId}`)
+      const data = await res.json()
+      return data
+    } catch { 
+      return { reviews: [], averageRating: 0, total: 0 } 
+    }
+  },
+
   // ── NOTIFICATIONS (frontend in-memory) ───────────────────
   getNotifications(userId: string): Notification[] {
     return _notifications
