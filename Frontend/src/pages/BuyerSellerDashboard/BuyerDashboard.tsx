@@ -179,42 +179,25 @@ export default function BuyerDashboard() {
 
   // Fetch followed sellers from listings with proper names
   const fetchFollowedSellers = () => {
-    // Create a map of unique sellers from listings
-    const sellerMap = new Map();
-    
-    listings.forEach((listing: any) => {
-      // Get seller info from the listing
-      const sellerId = listing.sellerId;
-      
-      // Try to get seller name from various sources
-      let sellerName = 'Unknown Seller';
-      let sellerLocation = listing.location || 'Nigeria';
-      
-      // The sellerName should be directly on the listing from the backend
-      if (listing.sellerName && listing.sellerName !== 'Unknown Seller') {
-        sellerName = listing.sellerName;
-      } 
-      // If there's a seller object with name
-      else if (listing.seller?.name) {
-        sellerName = listing.seller.name;
+    // Build unique sellers from listings
+    const uniqueSellers = listings.reduce((acc: any[], listing: any) => {
+      if (listing.sellerId && !acc.find(s => s.id === listing.sellerId)) {
+        acc.push({
+          id:       listing.sellerId,
+          location: listing.location || 'Nigeria',
+          name:     listing.sellerName || 'Unknown Seller',
+          user: {
+            name:  listing.sellerName || 'Unknown Seller',
+            email: listing.sellerEmail || '',
+            phone: listing.sellerPhone || '',
+          }
+        })
       }
-      // If there's a seller object with user name
-      else if (listing.seller?.user?.name) {
-        sellerName = listing.seller.user.name;
-      }
-      
-      if (sellerId && !sellerMap.has(sellerId)) {
-        sellerMap.set(sellerId, {
-          id: sellerId,
-          name: sellerName,
-          location: sellerLocation,
-        });
-      }
-    });
+      return acc
+    }, []);
 
-    // Convert map to array and filter followed
-    const allSellers = Array.from(sellerMap.values());
-    const followed = allSellers.filter(s => sellerIds.includes(s.id));
+    // Filter to only show followed sellers
+    const followed = uniqueSellers.filter(s => sellerIds.includes(s.id));
     
     setFollowedSellers(followed);
   };
@@ -288,11 +271,15 @@ export default function BuyerDashboard() {
     remainingQty: rec.quantity,
     location: rec.location,
     description: "",
-    photoUrl: undefined,
+    photoUrl: rec.photoUrl,
     status: "available",
     createdAt: new Date().toISOString(),
     distance: rec.distance,
   }));
+
+  // ── TEMPORARY DEBUG LOG ──────────────────────────────────
+  console.log('AI listings:', aiListings.map(l => ({ id: l.id, photoUrl: l.photoUrl })));
+  console.log('AI recommendations raw:', aiRecommendations);
 
   const initialCount: number = isMobile ? 2 : 3;
 
