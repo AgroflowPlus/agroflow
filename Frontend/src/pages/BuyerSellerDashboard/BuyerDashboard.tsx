@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   RiLeafFill,
@@ -115,6 +115,10 @@ export default function BuyerDashboard() {
   const [showAllRecommendations, setShowAllRecommendations] = useState(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
 
+  // ── Fix 1: Scroll to top ──────────────────────────────────────────────
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
   // Cart Store
   const cartCount = useCartStore((s) => s.totalItems());
 
@@ -133,6 +137,19 @@ export default function BuyerDashboard() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  // ── Detect scroll for scroll-to-top button ──────────────────────────
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const onScroll = () => setShowScrollTop(el.scrollTop > 300);
+    el.addEventListener("scroll", onScroll);
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   // ── PATCH: Add polling — re-fetches listings every 30 seconds ────────────
   useEffect(() => {
     refresh();
@@ -148,13 +165,14 @@ export default function BuyerDashboard() {
 
   async function refresh() {
     try {
-      const [listingsData, matchesData, waitlistData, ordersData] = await Promise.all([
-        marketService.getListings(user.location),
-        marketService.getMatches(),
-        marketService.getWaitlist(),
-        marketService.getOrders(),
-      ]);
-      
+      const [listingsData, matchesData, waitlistData, ordersData] =
+        await Promise.all([
+          marketService.getListings(user.location),
+          marketService.getMatches(),
+          marketService.getWaitlist(),
+          marketService.getOrders(),
+        ]);
+
       setListings(listingsData);
       setMatches(matchesData);
       setWaitlist(waitlistData);
@@ -181,24 +199,24 @@ export default function BuyerDashboard() {
   const fetchFollowedSellers = () => {
     // Build unique sellers from listings
     const uniqueSellers = listings.reduce((acc: any[], listing: any) => {
-      if (listing.sellerId && !acc.find(s => s.id === listing.sellerId)) {
+      if (listing.sellerId && !acc.find((s) => s.id === listing.sellerId)) {
         acc.push({
-          id:       listing.sellerId,
-          location: listing.location || 'Nigeria',
-          name:     listing.sellerName || 'Unknown Seller',
+          id: listing.sellerId,
+          location: listing.location || "Nigeria",
+          name: listing.sellerName || "Unknown Seller",
           user: {
-            name:  listing.sellerName || 'Unknown Seller',
-            email: listing.sellerEmail || '',
-            phone: listing.sellerPhone || '',
-          }
-        })
+            name: listing.sellerName || "Unknown Seller",
+            email: listing.sellerEmail || "",
+            phone: listing.sellerPhone || "",
+          },
+        });
       }
-      return acc
+      return acc;
     }, []);
 
     // Filter to only show followed sellers
-    const followed = uniqueSellers.filter(s => sellerIds.includes(s.id));
-    
+    const followed = uniqueSellers.filter((s) => sellerIds.includes(s.id));
+
     setFollowedSellers(followed);
   };
 
@@ -278,8 +296,11 @@ export default function BuyerDashboard() {
   }));
 
   // ── TEMPORARY DEBUG LOG ──────────────────────────────────
-  console.log('AI listings:', aiListings.map(l => ({ id: l.id, photoUrl: l.photoUrl })));
-  console.log('AI recommendations raw:', aiRecommendations);
+  console.log(
+    "AI listings:",
+    aiListings.map((l) => ({ id: l.id, photoUrl: l.photoUrl })),
+  );
+  console.log("AI recommendations raw:", aiRecommendations);
 
   const initialCount: number = isMobile ? 2 : 3;
 
@@ -657,9 +678,37 @@ export default function BuyerDashboard() {
           </div>
         </div>
 
-        <div className={styles.content}>
+        <div
+          ref={contentRef}
+          className={styles.content}
+          style={{ overflowY: "auto", maxHeight: "calc(100vh - 120px)", paddingBottom: "80"}}
+        >
           {section === "marketplace" && (
             <>
+              {/* ── Fix 2: Show AI Recommendations pill ────────────────────────── */}
+              {!showAIRecommendations && aiListings.length > 0 && (
+                <button
+                  onClick={() => setShowAIRecommendations(true)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    margin: "0 16px 12px",
+                    padding: "8px 14px",
+                    borderRadius: 100,
+                    background: "#f2f9e4",
+                    border: "1.5px solid #a8d832",
+                    color: "#2d6a35",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  <RiRobot2Fill size={14} />
+                  Show AI Recommendations
+                </button>
+              )}
+
               {/* AI RECOMMENDATIONS SECTION */}
               {showAIRecommendations && aiListings.length > 0 && (
                 <div className={styles.aiRecommendationsSection}>
@@ -711,7 +760,9 @@ export default function BuyerDashboard() {
                     <div className={styles.showMoreContainer}>
                       <button
                         className={styles.showMoreBtn}
-                        onClick={() => setShowAllRecommendations(!showAllRecommendations)}
+                        onClick={() =>
+                          setShowAllRecommendations(!showAllRecommendations)
+                        }
                       >
                         {showAllRecommendations
                           ? "Show Less ↑"
@@ -790,6 +841,41 @@ export default function BuyerDashboard() {
                 addToast("Profile updated successfully!", "success");
               }}
             />
+          )}
+
+          {/* ── Fix 1: Scroll to top button ─────────────── */}
+          {showScrollTop && (
+            <button
+              onClick={scrollToTop}
+              style={{
+                position: "fixed",
+                bottom: 90,
+                right: 16,
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                background: "#2d6a35",
+                color: "#fff",
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
+                zIndex: 100,
+                fontSize: 18,
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "scale(1.1)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "scale(1)";
+              }}
+              aria-label="Scroll to top"
+            >
+              ↑
+            </button>
           )}
         </div>
 
