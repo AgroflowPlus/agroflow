@@ -856,6 +856,7 @@ router.get('/ai-recommendations', protect, async (req: AuthRequest, res: Respons
         distance: Math.round(distance * 10) / 10,
         score: Math.min(Math.round(score), 100),
         reasons: reasons.slice(0, 3),
+        photoUrl: listing.photoUrl, // ← ADDED: Include photoUrl in recommendations
       };
     });
     
