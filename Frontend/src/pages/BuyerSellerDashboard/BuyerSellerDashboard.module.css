@@ -504,9 +504,15 @@
 .cropTabs {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  /* flex-wrap: wrap; */
   margin-bottom: 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  flex-wrap: nowrap;
 }
+
+.cropTabs::-webkit-scrollbar { display: none; }
 
 .cropTab {
   display: flex;
@@ -519,6 +525,7 @@
   font-family: var(--font);
   font-size: 13px;
   font-weight: 600;
+  flex-shrink: 0;
   color: #6b7f6e;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -2418,6 +2425,121 @@ input:checked + .slider:before {
 
 
 
+/* listing card */
+.cardImageArea {
+  position: relative;
+  height: 120px;
+  background: #f2f9e4;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.cardImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cardImagePlaceholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f2f9e4;
+}
+
+.cropBadge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(255,255,255,0.92);
+  color: #141f15;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 100px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.heartBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.92);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  z-index: 2;
+}
+
+.matchBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  z-index: 3;
+  flex-wrap: nowrap;
+}
+
+.matchBadge {
+  background: #a8d832;
+  color: #141f15;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+
+.whyBtn {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 100px;
+  padding: 2px 7px;
+  cursor: pointer;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.reasonsOverlay {
+  position: absolute;
+  bottom: 26px;
+  left: 0;
+  right: 0;
+  background: rgba(0,0,0,0.38);
+  backdrop-filter: blur(6px);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.reasonItem {
+  font-size: 10px;
+  color: #d4f06e;
+  font-weight: 500;
+}
+
 
 .deleteListingBtn {
   position: absolute;
@@ -2576,7 +2698,8 @@ input:checked + .slider:before {
 .aiScoreBadge {
   position: absolute;
   top: var(--sp-2);
-  right: var(--sp-2);
+   left: 10px;
+  right: auto;
   background: var(--clr-fern);
   color: var(--clr-white);
   padding: var(--sp-1) var(--sp-3);

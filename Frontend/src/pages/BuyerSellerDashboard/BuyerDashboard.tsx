@@ -49,8 +49,6 @@ import { useFavoritesStore } from "../../store/favoritesStore";
 import { LoadingButton } from "../../components/LoadingButton/LoadingButton";
 import styles from "./BuyerSellerDashboard.module.css";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "https://ai-farmer-platform-backend-code.onrender.com/api";
-
 type Section =
   | "marketplace"
   | "buy"
@@ -123,6 +121,11 @@ export default function BuyerDashboard() {
   // Favorites Store
   const { listingIds, sellerIds } = useFavoritesStore();
 
+  // Fetch followed sellers whenever sellerIds or listings change
+  useEffect(() => {
+    fetchFollowedSellers();
+  }, [sellerIds, listings]);
+
   useEffect(() => {
     const check = (): void => setIsMobile(window.innerWidth <= 768);
     check();
@@ -134,7 +137,6 @@ export default function BuyerDashboard() {
   useEffect(() => {
     refresh();
     loadAIRecommendations();
-    fetchFollowedSellers();
 
     // Poll every 30 seconds — buyer sees new listings without refreshing
     const interval = setInterval(() => {
@@ -144,11 +146,6 @@ export default function BuyerDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch followed sellers when sellerIds change
-  useEffect(() => {
-    fetchFollowedSellers();
-  }, [sellerIds]);
-
   async function refresh() {
     try {
       const [listingsData, matchesData, waitlistData, ordersData] = await Promise.all([
@@ -157,6 +154,7 @@ export default function BuyerDashboard() {
         marketService.getWaitlist(),
         marketService.getOrders(),
       ]);
+      
       setListings(listingsData);
       setMatches(matchesData);
       setWaitlist(waitlistData);
@@ -179,45 +177,46 @@ export default function BuyerDashboard() {
     }
   };
 
-  const fetchFollowedSellers = async () => {
-    try {
-      if (sellerIds.length === 0) {
-        setFollowedSellers([]);
-        return;
+  // Fetch followed sellers from listings with proper names
+  const fetchFollowedSellers = () => {
+    // Create a map of unique sellers from listings
+    const sellerMap = new Map();
+    
+    listings.forEach((listing: any) => {
+      // Get seller info from the listing
+      const sellerId = listing.sellerId;
+      
+      // Try to get seller name from various sources
+      let sellerName = 'Unknown Seller';
+      let sellerLocation = listing.location || 'Nigeria';
+      
+      // The sellerName should be directly on the listing from the backend
+      if (listing.sellerName && listing.sellerName !== 'Unknown Seller') {
+        sellerName = listing.sellerName;
+      } 
+      // If there's a seller object with name
+      else if (listing.seller?.name) {
+        sellerName = listing.seller.name;
       }
-
-      // Get token for authorization
-      const token = localStorage.getItem("agf_token");
-      if (!token) {
-        setFollowedSellers([]);
-        return;
+      // If there's a seller object with user name
+      else if (listing.seller?.user?.name) {
+        sellerName = listing.seller.user.name;
       }
+      
+      if (sellerId && !sellerMap.has(sellerId)) {
+        sellerMap.set(sellerId, {
+          id: sellerId,
+          name: sellerName,
+          location: sellerLocation,
+        });
+      }
+    });
 
-      // Fetch each seller's details
-      const sellersData = await Promise.all(
-        sellerIds.map(async (sellerId) => {
-          try {
-            const res = await fetch(`${BASE_URL}/users/${sellerId}`, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            });
-            if (res.ok) {
-              const data = await res.json();
-              return data.user || data;
-            }
-            return null;
-          } catch {
-            return null;
-          }
-        })
-      );
-
-      setFollowedSellers(sellersData.filter(Boolean));
-    } catch (error) {
-      console.error("Failed to fetch followed sellers:", error);
-      setFollowedSellers([]);
-    }
+    // Convert map to array and filter followed
+    const allSellers = Array.from(sellerMap.values());
+    const followed = allSellers.filter(s => sellerIds.includes(s.id));
+    
+    setFollowedSellers(followed);
   };
 
   const unread = notifs.filter((n) => !n.read).length;
@@ -702,37 +701,20 @@ export default function BuyerDashboard() {
                     </button>
                   </div>
 
-                  {/* Cards */}
+                  {/* Cards - Direct ListingCard with match data */}
                   <div className={styles.marketplaceGrid}>
                     {visibleRecommendations.map((listing, index) => {
                       const rec = aiRecommendations[index];
                       return (
-                        <div key={listing.id} className={styles.aiCardWrapper}>
-                          {rec && (
-                            <>
-                              <div className={styles.aiScoreBadge}>
-                                {rec.score}% Match
-                              </div>
-                              <div className={styles.aiImageOverlay}>
-                                <div className={styles.aiReasons}>
-                                  {rec.reasons
-                                    ?.slice(0, 2)
-                                    .map((reason: string, idx: number) => (
-                                      <span key={idx} className={styles.aiReason}>
-                                        ✓ {reason}
-                                      </span>
-                                    ))}
-                                </div>
-                              </div>
-                            </>
-                          )}
-                          <ListingCard
-                            listing={listing}
-                            intent="buy"
-                            onRequestToBuy={handleRequestToBuy}
-                            onClick={handleListingClick}
-                          />
-                        </div>
+                        <ListingCard
+                          key={listing.id}
+                          listing={listing}
+                          intent="buy"
+                          onRequestToBuy={handleRequestToBuy}
+                          onClick={handleListingClick}
+                          matchScore={rec?.score}
+                          matchReasons={rec?.reasons?.slice(0, 2)}
+                        />
                       );
                     })}
                   </div>

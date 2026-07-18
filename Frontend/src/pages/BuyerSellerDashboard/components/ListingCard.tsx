@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { RiMapPinLine } from "react-icons/ri";
 import { GiFarmer } from "react-icons/gi";
 import { MdAddShoppingCart, MdFavorite, MdFavoriteBorder } from "react-icons/md";
-import { CROP_ICON, CROP_CSS, getImageFallback } from "../constants";
+import { CROP_ICON } from "../constants";
 import styles from "../BuyerSellerDashboard.module.css";
-import type { Listing } from "../../../services/marketService";
+import type { Listing, CropType } from "../../../services/marketService";
 import { useCartStore } from '../../../store/cartStore';
 import { useFavoritesStore } from '../../../store/favoritesStore';
 import { LoadingButton } from '../../../components/LoadingButton/LoadingButton';
@@ -15,11 +15,21 @@ interface ListingCardProps {
   intent: "buy" | "sell";
   onRequestToBuy: (listing: Listing) => void;
   onClick?: (listing: Listing) => void;
+  matchScore?: number;
+  matchReasons?: string[];
 }
 
-export function ListingCard({ listing, intent, onRequestToBuy, onClick }: ListingCardProps) {
+export function ListingCard({ 
+  listing, 
+  intent, 
+  onRequestToBuy, 
+  onClick,
+  matchScore,
+  matchReasons = []
+}: ListingCardProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [showReasons, setShowReasons] = useState(false);
   const addItem = useCartStore(s => s.addItem);
   const cartItems = useCartStore(s => s.items);
   const inCart = cartItems.some(i => i.listing.id === listing.id);
@@ -64,15 +74,6 @@ export function ListingCard({ listing, intent, onRequestToBuy, onClick }: Listin
     }
   };
 
-  const handleFavoriteToggle = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    toggleListing(listing.id);
-    addToast(
-      liked ? 'Removed from favorites' : 'Added to favorites',
-      'success'
-    );
-  };
-
   const handleFollowToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (following) {
@@ -90,70 +91,83 @@ export function ListingCard({ listing, intent, onRequestToBuy, onClick }: Listin
       onClick={handleCardClick}
       style={{ position: 'relative' }}
     >
-      {/* Favorite Button */}
-      <button
-        onClick={handleFavoriteToggle}
-        style={{
-          position: 'absolute',
-          top: 10,
-          right: 10,
-          background: 'white',
-          border: 'none',
-          borderRadius: '50%',
-          width: 32,
-          height: 32,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-          zIndex: 1,
-          transition: 'transform 0.2s ease',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.1)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-        }}
-        aria-label={liked ? 'Remove from favorites' : 'Add to favorites'}
-      >
-        {liked
-          ? <MdFavorite size={18} color="#e05252" />
-          : <MdFavoriteBorder size={18} color="#9ead9f" />
-        }
-      </button>
-
-      <div className={styles.cardPhoto}>
+      {/* Card Image Area */}
+      <div className={styles.cardImageArea}>
         {listing.photoUrl ? (
-          <img
-            src={listing.photoUrl}
-            alt={listing.cropType}
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = getImageFallback(listing.cropType);
-            }}
-          />
+          <img src={listing.photoUrl} alt={listing.cropType} className={styles.cardImage} />
         ) : (
-          <div className={styles.photoPlaceholder}>
-            <span className={styles.photoEmoji}>
-              {CROP_ICON[listing.cropType]}
-            </span>
-            <span className={styles.photoText}>No photo</span>
+          <div className={styles.cardImagePlaceholder}>
+            <span style={{ fontSize: 36 }}>{CROP_ICON[listing.cropType as CropType] || '🌾'}</span>
           </div>
         )}
-        <div
-          className={`${styles.cardBadge} ${styles[CROP_CSS[listing.cropType]]}`}
-        >
-          {CROP_ICON[listing.cropType]} {listing.cropType}
+
+        {/* Crop badge */}
+        <div className={styles.cropBadge}>
+          {CROP_ICON[listing.cropType as CropType]} {listing.cropType}
         </div>
-        {listing.status !== "available" && (
-          <div className={styles.statusOverlay}>
-            <span>
-              {listing.status === "partial" ? "Partially Sold" : "Sold Out"}
-            </span>
+
+        {/* Heart */}
+        <button
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            toggleListing(listing.id);
+            addToast(
+              liked ? 'Removed from favorites' : 'Added to favorites',
+              'success'
+            );
+          }}
+          className={styles.heartBtn}
+          style={{
+            position: 'absolute',
+            top: 10,
+            right: 10,
+            zIndex: 2,
+            background: 'white',
+            border: 'none',
+            borderRadius: '50%',
+            width: 32,
+            height: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+            transition: 'transform 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+          aria-label={liked ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          {liked ? <MdFavorite size={18} color="#e05252" /> : <MdFavoriteBorder size={18} color="#9ead9f" />}
+        </button>
+
+        {/* Match bar — only for AI cards */}
+        {matchScore && (
+          <div className={styles.matchBar}>
+            <span className={styles.matchBadge}>{matchScore}% Match</span>
+            <button
+              className={styles.whyBtn}
+              onClick={(e) => { e.stopPropagation(); setShowReasons(r => !r) }}
+            >
+              {showReasons ? 'Close ✕' : 'Why? →'}
+            </button>
+
+            {/* Reasons overlay */}
+            {showReasons && matchReasons && (
+              <div className={styles.reasonsOverlay}>
+                {matchReasons.map((r, i) => (
+                  <span key={i} className={styles.reasonItem}>✓ {r}</span>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
+
       <div className={styles.cardInfo}>
         <div className={styles.sellerRow}>
           <div className={styles.sellerAvatar}>
