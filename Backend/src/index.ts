@@ -7,41 +7,44 @@ import fieldRoutes from "./routes/fields";
 import alertRoutes from "./routes/alerts";
 import userRoutes from "./routes/users";
 import contentRoutes from "./routes/content";
-import listingRoutes from './routes/listings'
+import listingRoutes from "./routes/listings";
 import aiRoutes from "./routes/ai";
-import chatRoutes from './routes/chat';
-import buyerRoutes from './routes/buyers';
-import roleRoutes from './routes/role';
-import voiceRoutes from './routes/voice';
-import ordersRouter from './routes/orders'
-import reviewsRouter from './routes/reviews'
-import prisma from './db/index'
+import chatRoutes from "./routes/chat";
+import buyerRoutes from "./routes/buyers";
+import roleRoutes from "./routes/role";
+import voiceRoutes from "./routes/voice";
+import ordersRouter from "./routes/orders";
+import reviewsRouter from "./routes/reviews";
+import prisma from "./db/index";
 
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== "production") {
   dotenv.config();
 }
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin) return callback(null, true)
-    if (origin.startsWith('http://localhost:')) return callback(null, true)
-    const allowedOrigins = [
-      'https://ai-driven-agricultural-platform.vercel.app',
-      process.env.FARMER_APP_URL,
-      process.env.ADMIN_URL,
-    ].filter(Boolean)
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true)
-    } else {
-      console.log('CORS blocked:', origin)
-      callback(new Error('Not allowed by CORS'))
-    }
-  },
-  credentials: true,
-}))
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (origin.startsWith("http://localhost:")) return callback(null, true);
+      const allowedOrigins = [
+        "https://ai-driven-agricultural-platform.vercel.app",
+        'https://agroflowplus-platform.vercel.app',
+        process.env.FARMER_APP_URL,
+        process.env.ADMIN_URL,
+      ].filter(Boolean);
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.log("CORS blocked:", origin);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  }),
+);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -50,8 +53,8 @@ app.get("/health", (_req, res) => {
   res.json({ status: "AgroFlow+ backend is running", timestamp: new Date() });
 });
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/farmers", farmerRoutes);
@@ -60,46 +63,51 @@ app.use("/api/alerts", alertRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/content", contentRoutes);
 app.use("/api/ai", aiRoutes);
-app.use('/api/listings', listingRoutes)
-app.use('/api/chat', chatRoutes);
-app.use('/api/buyers', buyerRoutes);
-app.use('/api/role', roleRoutes);
-app.use('/api/voice', voiceRoutes);
-app.use('/api/orders', ordersRouter)
-app.use('/api/reviews', reviewsRouter)
+app.use("/api/listings", listingRoutes);
+app.use("/api/chat", chatRoutes);
+app.use("/api/buyers", buyerRoutes);
+app.use("/api/role", roleRoutes);
+app.use("/api/voice", voiceRoutes);
+app.use("/api/orders", ordersRouter);
+app.use("/api/reviews", reviewsRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Route not found" });
 });
 
-app.use((
-  err: Error,
-  _req: express.Request,
-  res: express.Response,
-  _next: express.NextFunction,
-) => {
-  console.error(err.stack);
-  res.status(500).json({ error: "Something went wrong", message: err.message });
-});
+app.use(
+  (
+    err: Error,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction,
+  ) => {
+    console.error(err.stack);
+    res
+      .status(500)
+      .json({ error: "Something went wrong", message: err.message });
+  },
+);
 
 app.listen(PORT, () => {
   console.log(`🌱 AgroFlow+ backend running on http://localhost:${PORT}`);
 });
 
 // Test database connection on startup
-prisma.$connect()
-  .then(() => console.log('✅ Database connected'))
-  .catch((e) => console.error('❌ Database connection failed:', e.message))
+prisma
+  .$connect()
+  .then(() => console.log("✅ Database connected"))
+  .catch((e) => console.error("❌ Database connection failed:", e.message));
 
 // ── Global Error Handlers ──────────────────────────────────
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err)
-})
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+});
 
-process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled Rejection:', reason)
-})
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Rejection:", reason);
+});
 
-process.stdin.resume() // Keep process alive
+process.stdin.resume(); // Keep process alive
 
 export default app;
