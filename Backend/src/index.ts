@@ -24,10 +24,16 @@ if (process.env.NODE_ENV !== "production") {
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ── CORS: Allow all origins ──────────────────────────────────
+// ── CORS: Allow specific origins from environment ──────────────────
 app.use(
   cors({
-    origin: true,  
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (origin.startsWith("http://localhost:")) return callback(null, true);
+      const allowed = (process.env.ALLOWED_ORIGINS || "").split(",");
+      if (allowed.includes(origin)) return callback(null, true);
+      callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   }),
 );
