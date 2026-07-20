@@ -22,7 +22,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,woff2}'], // removed svg
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3MB limit
+        globIgnores: ['**/favicon.svg'], // ignore the large SVG
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/ai-farmer-platform-backend-code\.onrender\.com\/api\/listings/,
