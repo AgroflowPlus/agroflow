@@ -8,6 +8,7 @@ import SellerDashboard      from './pages/SellerDashboard/SellerDashboard'
 import FloatingAI           from './components/FloatingAI/FloatingAI'
 import { ToastContainer }   from './components/Toast/Toast'
 import { ToastProvider }    from './context/ToastContext'
+import { PWAInstallBanner } from './components/PWAInstallBanner/PWAInstallBanner'
 
 function FarmerWithAI() {
   return (
@@ -21,8 +22,8 @@ function FarmerWithAI() {
 export default function App() {
   return (
     <ToastProvider>
+      <PWAInstallBanner />
       <BrowserRouter>
-        {/* PageLoader removed — each dashboard controls its own loading state */}
         <Routes>
           <Route path="/"         element={<Onboarding />}       />
           <Route path="/register" element={<Register />}         />
