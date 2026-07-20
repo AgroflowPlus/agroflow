@@ -73,10 +73,10 @@ export default function Login() {
 
       // Small delay lets the splash render before navigate fires
       setTimeout(() => {
-        if      (role === 'farmer') navigate('/farmer/dashboard')
-        else if (role === 'buyer')  navigate('/buyer/dashboard')
-        else if (role === 'seller') navigate('/seller/dashboard')
-        else                        navigate('/admin/dashboard')
+        if      (role === 'farmer') navigate('/farmer/dashboard', { replace: true })
+        else if (role === 'buyer')  navigate('/buyer/dashboard', { replace: true })
+        else if (role === 'seller') navigate('/seller/dashboard', { replace: true })
+        else                        navigate('/admin/dashboard', { replace: true })
       }, 80)
 
     } catch (err: unknown) {

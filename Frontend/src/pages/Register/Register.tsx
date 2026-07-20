@@ -78,9 +78,9 @@ export default function Register() {
     email: "",
     phone: "",
     password: "",
-    location: "", // Add location field
+    location: "",
   });
-const [step] = useState (0)
+  const [step] = useState(0);
 
   useEffect(() => {
     getContentImages().then((imgs) => {
@@ -122,7 +122,6 @@ const [step] = useState (0)
       e.password = "Password must include at least one number";
     }
 
-    // Validate location
     if (!form.location) {
       e.location = "Please select your location in Akure";
     }
@@ -132,7 +131,7 @@ const [step] = useState (0)
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    console.log('🔥 Submit fired, step:', step, { fullName: form.fullName, email: form.email, password: form.password, role: tab, phone: form.phone, location: form.location })
+    console.log('🔥 Submit fired, step:', step, { fullName: form.fullName, email: form.email, password: form.password, role: tab, phone: form.phone, location: form.location });
     e.preventDefault();
     setApiError("");
     
@@ -174,16 +173,16 @@ const [step] = useState (0)
       authService.saveSession(res);
       const userRole = res.user.role as UserRole;
 
-      // Redirect based on role
+      // Redirect based on role with replace: true
       if (userRole === "farmer") {
         console.log('🚀 Redirecting to /farmer');
-        navigate("/farmer");
+        navigate("/farmer", { replace: true });
       } else if (userRole === "buyer") {
         console.log('🚀 Redirecting to /buyer');
-        navigate("/buyer");
+        navigate("/buyer", { replace: true });
       } else {
         console.log('🚀 Redirecting to /farmer (fallback)');
-        navigate("/farmer");
+        navigate("/farmer", { replace: true });
       }
     } catch (err: unknown) {
       console.error('❌ Registration error:', err);
@@ -385,9 +384,6 @@ const [step] = useState (0)
                   />
                 </div>
                 {err("location")}
-                {/* <div className={styles.fieldHint}>
-    This helps us find nearby sellers and buyers for you
-  </div> */}
               </div>
 
               <div className={styles.fieldGroup}>
