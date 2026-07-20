@@ -24,24 +24,10 @@ if (process.env.NODE_ENV !== "production") {
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// ── CORS: Allow all origins ──────────────────────────────────
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      if (origin.startsWith("http://localhost:")) return callback(null, true);
-      const allowedOrigins = [
-        "https://ai-driven-agricultural-platform.vercel.app",
-        'https://agroflowplus-platform.vercel.app',
-        process.env.FARMER_APP_URL,
-        process.env.ADMIN_URL,
-      ].filter(Boolean);
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.log("CORS blocked:", origin);
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
+    origin: true,  
     credentials: true,
   }),
 );
