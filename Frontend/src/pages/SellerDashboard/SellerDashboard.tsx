@@ -88,6 +88,18 @@ export default function SellerDashboard() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // ── Prevent back button from closing the app ──────────────────────────
+  useEffect(() => {
+    window.history.pushState(null, '', window.location.href);
+    
+    const handlePopState = () => {
+      window.history.pushState(null, '', window.location.href);
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   useEffect(() => {
     refresh();
   }, []);

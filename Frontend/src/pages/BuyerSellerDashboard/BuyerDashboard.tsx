@@ -127,6 +127,20 @@ export default function BuyerDashboard() {
   // Favorites Store
   const { listingIds, sellerIds } = useFavoritesStore();
 
+  // ── Prevent back button from closing the app ──────────────────────────
+  useEffect(() => {
+    // Push a state so there's always something to go back to
+    window.history.pushState(null, '', window.location.href);
+    
+    const handlePopState = () => {
+      // When back is pressed, push state again to prevent closing
+      window.history.pushState(null, '', window.location.href);
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   // Fetch followed sellers whenever sellerIds or listings change
   useEffect(() => {
     fetchFollowedSellers();

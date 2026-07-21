@@ -24,6 +24,7 @@ export function ListingCard({
   const [isAddingToCart, setIsAddingToCart] = useState(false);
 
   const addItem    = useCartStore(s => s.addItem);
+  const removeItem = useCartStore(s => s.removeItem);
   const cartItems  = useCartStore(s => s.items);
   const inCart     = cartItems.some(i => i.listing.id === listing.id);
 
@@ -37,7 +38,15 @@ export function ListingCard({
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isAddingToCart || inCart) return;
+    if (isAddingToCart) return;
+
+    // Toggle — if in cart remove, if not add
+    if (inCart) {
+      removeItem(listing.id);
+      addToast('Removed from cart', 'info');
+      return;
+    }
+
     setIsAddingToCart(true);
     try {
       addItem(listing, 1);
