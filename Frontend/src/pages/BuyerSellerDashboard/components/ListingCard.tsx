@@ -1,13 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { RiMapPinLine } from "react-icons/ri";
-import { GiFarmer } from "react-icons/gi";
 import { MdAddShoppingCart, MdFavorite, MdFavoriteBorder } from "react-icons/md";
 import { CROP_ICON } from "../constants";
 import styles from "../BuyerSellerDashboard.module.css";
 import type { Listing, CropType } from "../../../services/marketService";
 import { useCartStore } from '../../../store/cartStore';
 import { useFavoritesStore } from '../../../store/favoritesStore';
-import { LoadingButton } from '../../../components/LoadingButton/LoadingButton';
 import { useToast } from '../../../context/ToastContext';
 
 interface ListingCardProps {
@@ -20,132 +18,94 @@ interface ListingCardProps {
 }
 
 export function ListingCard({ 
-  listing, 
-  intent, 
-  onRequestToBuy, 
-  onClick,
-  matchScore,
-  matchReasons = []
+  listing, intent, onClick, matchScore, matchReasons = []
 }: ListingCardProps) {
-  const [isMobile, setIsMobile] = useState(false);
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [showReasons, setShowReasons] = useState(false);
-  const addItem = useCartStore(s => s.addItem);
-  const cartItems = useCartStore(s => s.items);
-  const inCart = cartItems.some(i => i.listing.id === listing.id);
-  const { toggleListing, isLiked, isFollowing, followSeller, unfollowSeller } = useFavoritesStore();
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+
+  const addItem    = useCartStore(s => s.addItem);
+  const cartItems  = useCartStore(s => s.items);
+  const inCart     = cartItems.some(i => i.listing.id === listing.id);
+
+  const { toggleListing, isLiked } = useFavoritesStore();
   const liked = isLiked(listing.id);
-  const following = isFollowing(listing.sellerId);
   const { addToast } = useToast();
 
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
   const handleCardClick = () => {
-    // Only trigger on mobile devices
-    if (isMobile && onClick) {
-      onClick(listing);
-    }
-  };
-
-  const handleRequestClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onRequestToBuy(listing);
+    if (onClick) onClick(listing);
   };
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isAddingToCart) return;
-    
+    if (isAddingToCart || inCart) return;
     setIsAddingToCart(true);
     try {
       addItem(listing, 1);
       addToast('Added to cart!', 'success');
-    } catch (error) {
-      addToast('Failed to add to cart', 'error');
     } finally {
       setIsAddingToCart(false);
     }
   };
 
-  const handleFollowToggle = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (following) {
-      unfollowSeller(listing.sellerId);
-      addToast('Unfollowed seller', 'info');
-    } else {
-      followSeller(listing.sellerId);
-      addToast('Following seller!', 'success');
-    }
-  };
-
   return (
-    <div 
-      className={`${styles.marketplaceCard} ${isMobile ? styles.clickable : ''}`} 
+    <div
+      className={styles.marketplaceCard}
       onClick={handleCardClick}
-      style={{ position: 'relative' }}
+      style={{ cursor: onClick ? 'pointer' : 'default', position: 'relative' }}
     >
-      {/* Card Image Area */}
+      {/* ── IMAGE AREA ── */}
       <div className={styles.cardImageArea}>
         {listing.photoUrl ? (
           <img src={listing.photoUrl} alt={listing.cropType} className={styles.cardImage} />
         ) : (
           <div className={styles.cardImagePlaceholder}>
-            <span style={{ fontSize: 36 }}>{CROP_ICON[listing.cropType as CropType] || '🌾'}</span>
+            <span style={{ fontSize: 40 }}>{CROP_ICON[listing.cropType as CropType] || '🌾'}</span>
           </div>
         )}
 
-        {/* Crop badge */}
+        {/* Crop badge — top left */}
         <div className={styles.cropBadge}>
           {CROP_ICON[listing.cropType as CropType]} {listing.cropType}
         </div>
 
-        {/* Heart */}
-        <button
-          onClick={(e) => { 
-            e.stopPropagation(); 
-            toggleListing(listing.id);
-            addToast(
-              liked ? 'Removed from favorites' : 'Added to favorites',
-              'success'
-            );
-          }}
-          className={styles.heartBtn}
-          style={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            zIndex: 2,
-            background: 'white',
-            border: 'none',
-            borderRadius: '50%',
-            width: 32,
-            height: 32,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-            transition: 'transform 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-          }}
-          aria-label={liked ? 'Remove from favorites' : 'Add to favorites'}
-        >
-          {liked ? <MdFavorite size={18} color="#e05252" /> : <MdFavoriteBorder size={18} color="#9ead9f" />}
-        </button>
+        {/* Heart — top right (buyer only) */}
+        {intent === 'buy' && (
+          <button
+            className={styles.heartBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleListing(listing.id);
+              addToast(liked ? 'Removed from favorites' : 'Added to favorites', 'success');
+            }}
+            aria-label={liked ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            {liked
+              ? <MdFavorite size={16} color="#e05252" />
+              : <MdFavoriteBorder size={16} color="#9ead9f" />
+            }
+          </button>
+        )}
 
-        {/* Match bar — only for AI cards */}
+        {/* Cart button — bottom right of image (buyer only) */}
+        {intent === 'buy' && listing.status !== 'sold' && (
+          <button
+            onClick={handleAddToCart}
+            style={{
+              position: 'absolute', bottom: matchScore ? 32 : 8, right: 8,
+              width: 32, height: 32, borderRadius: '50%',
+              background: inCart ? '#a8d832' : 'rgba(255,255,255,0.95)',
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+              zIndex: 2, transition: 'all 0.15s',
+            }}
+            aria-label={inCart ? 'In cart' : 'Add to cart'}
+          >
+            <MdAddShoppingCart size={16} color={inCart ? '#141f15' : '#6b7f6e'} />
+          </button>
+        )}
+
+        {/* Match bar */}
         {matchScore && (
           <div className={styles.matchBar}>
             <span className={styles.matchBadge}>{matchScore}% Match</span>
@@ -155,9 +115,7 @@ export function ListingCard({
             >
               {showReasons ? 'Close ✕' : 'Why? →'}
             </button>
-
-            {/* Reasons overlay */}
-            {showReasons && matchReasons && (
+            {showReasons && matchReasons.length > 0 && (
               <div className={styles.reasonsOverlay}>
                 {matchReasons.map((r, i) => (
                   <span key={i} className={styles.reasonItem}>✓ {r}</span>
@@ -166,103 +124,50 @@ export function ListingCard({
             )}
           </div>
         )}
+
+        {/* Sold overlay */}
+        {listing.status === 'sold' && (
+          <div className={styles.statusOverlay}>
+            <span>Sold Out</span>
+          </div>
+        )}
       </div>
 
-      <div className={styles.cardInfo}>
-        <div className={styles.sellerRow}>
-          <div className={styles.sellerAvatar}>
-            <GiFarmer size={16} />
+      {/* ── MINIMAL INFO BELOW IMAGE ── */}
+      <div style={{ padding: '10px 10px 12px' }}>
+        {/* Seller + distance */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+          <div style={{
+            width: 22, height: 22, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #a8d832, #2d6a35)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 9, fontWeight: 700, color: '#141f15', flexShrink: 0,
+          }}>
+            {listing.sellerName?.charAt(0).toUpperCase() || 'S'}
           </div>
-          <div>
-            <div className={styles.sellerName}>{listing.sellerName}</div>
-            <div className={styles.sellerLocation}>
-              <RiMapPinLine size={10} /> {listing.location} ·{" "}
-              {listing.distance || "nearby"}
-            </div>
-          </div>
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#141f15', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {listing.sellerName}
+          </span>
+          <span style={{ fontSize: 10, color: '#9ead9f', display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+            <RiMapPinLine size={9} /> {listing.distance || 'nearby'}
+          </span>
         </div>
-        
-        {/* Follow Button */}
-        {intent === "buy" && (
-          <button
-            onClick={handleFollowToggle}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '4px 10px',
-              borderRadius: 8,
-              border: `1.5px solid ${following ? '#a8d832' : '#eaeee8'}`,
-              background: following ? '#f2f9e4' : 'transparent',
-              color: following ? '#2d6a35' : '#9ead9f',
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer',
-              marginTop: 6,
-              transition: 'all 0.2s ease',
-            }}
-            onMouseEnter={(e) => {
-              if (!following) {
-                e.currentTarget.style.background = '#f7f8f5';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!following) {
-                e.currentTarget.style.background = 'transparent';
-              }
-            }}
-          >
-            {following ? '✓ Following' : '+ Follow Seller'}
-          </button>
-        )}
 
-        <div className={styles.produceStats}>
-          <div className={styles.statItem}>
-            <span className={styles.statValue}>{listing.remainingQty}kg</span>
-            <span className={styles.statLabel}>Available</span>
-          </div>
-          <div className={styles.statDivider}>|</div>
-          <div className={styles.statItem}>
-            <span className={styles.statValue}>Fresh</span>
-            <span className={styles.statLabel}>Quality</span>
-          </div>
+        {/* Quantity — prominent */}
+        <div style={{ fontSize: 17, fontWeight: 800, color: '#2d6a35', letterSpacing: '-0.02em' }}>
+          {listing.remainingQty}kg
+          <span style={{ fontSize: 10, fontWeight: 600, color: '#9ead9f', marginLeft: 4 }}>available</span>
         </div>
+
+        {/* Description — 1 line only */}
         {listing.description && (
-          <p className={styles.produceDesc}>
-            {listing.description.length > 80
-              ? `${listing.description.substring(0, 80)}...`
-              : listing.description}
-          </p>
+          <div style={{
+            fontSize: 10, color: '#9ead9f', marginTop: 3,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {listing.description}
+          </div>
         )}
-        
-        {/* Action Buttons */}
-        <div className={styles.cardActions}>
-          {intent === "buy" && listing.status !== "sold" && (
-            <>
-              <LoadingButton
-                loading={isAddingToCart}
-                className={`${styles.addCartBtn} ${inCart ? styles.addCartBtnActive : ''}`}
-                onClick={handleAddToCart}
-                disabled={isAddingToCart}
-              >
-                <MdAddShoppingCart size={16} />
-                {inCart ? 'In Cart' : 'Add to Cart'}
-              </LoadingButton>
-              <button
-                className={styles.requestBtn}
-                onClick={handleRequestClick}
-                disabled={isAddingToCart}
-              >
-                Request to Buy
-              </button>
-            </>
-          )}
-          {intent === "sell" && (
-            <button className={styles.yourListingBtn} disabled>
-              Your Listing
-            </button>
-          )}
-        </div>
       </div>
     </div>
   );

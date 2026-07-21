@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { RiMapPinLine, RiUserLine, RiCalendarLine, RiArrowLeftLine } from 'react-icons/ri';
 import { GiFarmer, GiCorn, GiTomato, GiChiliPepper, GiPlantRoots } from 'react-icons/gi';
+import { MdAddShoppingCart, MdFavorite, MdFavoriteBorder } from 'react-icons/md';
 import { useToast } from '../../context/ToastContext';
+import { useCartStore } from '../../store/cartStore';
+import { useFavoritesStore } from '../../store/favoritesStore';
 import type { Listing, CropType } from '../../services/marketService';
 import styles from './ListingDetailModal.module.css';
 
@@ -24,6 +27,16 @@ export function ListingDetailModal({ listing, isOpen, onClose, onRequestToBuy }:
   const [requestQty, setRequestQty] = useState('');
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ── Cart Store ──────────────────────────────────────────────────────────
+  const addItem = useCartStore(s => s.addItem);
+  const cartItems = useCartStore(s => s.items);
+  const inCart = cartItems.some(i => i.listing.id === listing?.id);
+
+  // ── Favorites Store ──────────────────────────────────────────────────────
+  const { toggleListing, isLiked, isFollowing, followSeller, unfollowSeller } = useFavoritesStore();
+  const liked = isLiked(listing?.id || '');
+  const following = isFollowing(listing?.sellerId || '');
 
   if (!isOpen || !listing) return null;
 
@@ -92,11 +105,37 @@ export function ListingDetailModal({ listing, isOpen, onClose, onRequestToBuy }:
 
   return (
     <div className={styles.fullscreenOverlay} onClick={onClose}>
-      <div className={styles.fullscreenModal} onClick={(e) => e.stopPropagation()}>
+      <div className={styles.fullscreenModal} onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
         {/* Back Button */}
         <button className={styles.backBtn} onClick={onClose}>
           <RiArrowLeftLine size={24} />
           <span>Back</span>
+        </button>
+
+        {/* Heart — top right */}
+        <button
+          onClick={() => {
+            toggleListing(listing.id);
+            addToast(liked ? 'Removed from favorites' : 'Saved!', 'success');
+          }}
+          style={{
+            position: 'absolute',
+            top: 16,
+            right: 16,
+            background: 'rgba(255,255,255,0.9)',
+            border: 'none',
+            borderRadius: '50%',
+            width: 38,
+            height: 38,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 10,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+          }}
+        >
+          {liked ? <MdFavorite size={20} color="#e05252" /> : <MdFavoriteBorder size={20} color="#9ead9f" />}
         </button>
 
         {/* Image Section */}
@@ -125,15 +164,45 @@ export function ListingDetailModal({ listing, isOpen, onClose, onRequestToBuy }:
               <h2 className={styles.cropName}>{listing.cropType}</h2>
             </div>
 
-            {/* Seller Info */}
+            {/* Seller Info - Updated with Follow button */}
             <div className={styles.infoCard}>
-              <div className={styles.infoRow}>
-                <div className={styles.infoIcon}><GiFarmer size={18} /></div>
-                <div className={styles.infoContent}>
-                  <div className={styles.infoLabel}>Seller</div>
-                  <div className={styles.infoValue}>{listing.sellerName}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div className={styles.infoRow} style={{ margin: 0 }}>
+                  <div className={styles.infoIcon}><GiFarmer size={18} /></div>
+                  <div className={styles.infoContent}>
+                    <div className={styles.infoLabel}>Seller</div>
+                    <div className={styles.infoValue}>{listing.sellerName}</div>
+                  </div>
                 </div>
+                {/* Follow button */}
+                <button
+                  onClick={() => {
+                    if (following) {
+                      unfollowSeller(listing.sellerId);
+                      addToast('Unfollowed seller', 'info');
+                    } else {
+                      followSeller(listing.sellerId);
+                      addToast('Following seller!', 'success');
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '6px 14px',
+                    borderRadius: 100,
+                    border: `1.5px solid ${following ? '#a8d832' : '#eaeee8'}`,
+                    background: following ? '#f2f9e4' : 'transparent',
+                    color: following ? '#2d6a35' : '#9ead9f',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {following ? '✓ Following' : '+ Follow'}
+                </button>
               </div>
+
               {listing.sellerPhone && (
                 <div className={styles.infoRow}>
                   <div className={styles.infoIcon}><RiUserLine size={18} /></div>
@@ -183,16 +252,45 @@ export function ListingDetailModal({ listing, isOpen, onClose, onRequestToBuy }:
               </div>
             )}
 
-            {/* Action Buttons */}
+            {/* Action Buttons - Updated with Cart and Request to Buy */}
             {listing.status !== 'sold' && (
               <div className={styles.actionSection}>
                 {!showRequestForm ? (
-                  <button 
-                    className={styles.requestBtn}
-                    onClick={() => setShowRequestForm(true)}
-                  >
-                    Request to Buy
-                  </button>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    {/* Add to Cart */}
+                    <button
+                      onClick={() => {
+                        addItem(listing, 1);
+                        addToast('Added to cart!', 'success');
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '12px 16px',
+                        borderRadius: 10,
+                        border: `1.5px solid ${inCart ? '#a8d832' : '#eaeee8'}`,
+                        background: inCart ? '#f2f9e4' : '#f7f8f5',
+                        color: inCart ? '#2d6a35' : '#6b7f6e',
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <MdAddShoppingCart size={18} />
+                      {inCart ? 'In Cart' : 'Cart'}
+                    </button>
+
+                    {/* Request to Buy */}
+                    <button
+                      className={styles.requestBtn}
+                      onClick={() => setShowRequestForm(true)}
+                      style={{ flex: 1 }}
+                    >
+                      Request to Buy
+                    </button>
+                  </div>
                 ) : (
                   <div className={styles.requestForm}>
                     <div className={styles.requestFormTitle}>How many kg do you need?</div>

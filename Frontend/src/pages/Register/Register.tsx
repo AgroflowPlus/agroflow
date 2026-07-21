@@ -175,14 +175,17 @@ export default function Register() {
 
       // Redirect based on role with replace: true
       if (userRole === "farmer") {
-        console.log('🚀 Redirecting to /farmer');
-        navigate("/farmer", { replace: true });
+        console.log('🚀 Redirecting to /farmer/dashboard');
+        navigate("/farmer/dashboard", { replace: true });
       } else if (userRole === "buyer") {
-        console.log('🚀 Redirecting to /buyer');
-        navigate("/buyer", { replace: true });
+        console.log('🚀 Redirecting to /buyer/dashboard');
+        navigate("/buyer/dashboard", { replace: true });
+      } else if (userRole === "seller") {
+        console.log('🚀 Redirecting to /seller/dashboard');
+        navigate("/seller/dashboard", { replace: true });
       } else {
-        console.log('🚀 Redirecting to /farmer (fallback)');
-        navigate("/farmer", { replace: true });
+        console.log('🚀 Redirecting to /farmer/dashboard (fallback)');
+        navigate("/farmer/dashboard", { replace: true });
       }
     } catch (err: unknown) {
       console.error('❌ Registration error:', err);

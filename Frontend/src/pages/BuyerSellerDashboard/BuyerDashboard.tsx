@@ -47,6 +47,7 @@ import { CROP_ICON } from "../BuyerSellerDashboard/constants";
 import { useCartStore } from "../../store/cartStore";
 import { useFavoritesStore } from "../../store/favoritesStore";
 import { LoadingButton } from "../../components/LoadingButton/LoadingButton";
+import PageLoader from "../../components/PageLoader/PageLoader";
 import styles from "./BuyerSellerDashboard.module.css";
 
 type Section =
@@ -108,6 +109,7 @@ export default function BuyerDashboard() {
   }>({ show: false, type: "delete" });
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // AI Recommendations State
   const [aiRecommendations, setAIRecommendations] = useState<any[]>([]);
@@ -164,23 +166,27 @@ export default function BuyerDashboard() {
   }, []);
 
   async function refresh() {
+    setLoading(true);
     try {
-      const [listingsData, matchesData, waitlistData, ordersData] =
-        await Promise.all([
-          marketService.getListings(user.location),
-          marketService.getMatches(),
-          marketService.getWaitlist(),
-          marketService.getOrders(),
-        ]);
+      // Run all independently — don't let one failure block listings
+      const [listingsData, matchesData, waitlistData, ordersData] = await Promise.allSettled([
+        marketService.getListings(user.location),
+        marketService.getMatches(),
+        marketService.getWaitlist(),
+        marketService.getOrders(),
+      ]);
 
-      setListings(listingsData);
-      setMatches(matchesData);
-      setWaitlist(waitlistData);
-      setOrders(ordersData);
+      // Only set data if successful
+      if (listingsData.status === 'fulfilled') setListings(listingsData.value);
+      if (matchesData.status === 'fulfilled') setMatches(matchesData.value);
+      if (waitlistData.status === 'fulfilled') setWaitlist(waitlistData.value);
+      if (ordersData.status === 'fulfilled') setOrders(ordersData.value);
+
       setNotifs(marketService.getNotifications(user.id));
     } catch (err) {
       console.error("Refresh error:", err);
-      addToast("Failed to refresh data", "error");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -386,6 +392,8 @@ export default function BuyerDashboard() {
   const visibleRecommendations = showAllRecommendations
     ? aiListings
     : aiListings.slice(0, initialCount);
+
+  if (loading) return <PageLoader />;
 
   return (
     <div className={styles.shell}>

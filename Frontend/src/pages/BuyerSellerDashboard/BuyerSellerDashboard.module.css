@@ -2442,11 +2442,17 @@ input:checked + .slider:before {
 /* listing card */
 .cardImageArea {
   position: relative;
-  height: 160px;
+  height: 180px;
   background: #f2f9e4;
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   overflow: hidden;
   flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+  .cardImageArea {
+    height: 150px;
+  }
 }
 
 .cardImage {

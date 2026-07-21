@@ -9,6 +9,7 @@ const MOCK_MODE = false;
 
 // ── "Just logged in" flag key ──────────────────────────────────────────────
 const JUST_LOGGED_IN_KEY = "agf_just_logged_in";
+const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /* ── Real API request ──────────────────────────────────── */
 async function request<T>(endpoint: string, options: RequestInit): Promise<T> {
@@ -50,7 +51,7 @@ export const authService = {
   saveSession: (res: AuthResponse) => {
     localStorage.setItem("agf_token", res.token);
     localStorage.setItem("agf_user", JSON.stringify(res.user));
-    // Mark that the user JUST logged in — dashboard reads this once
+    localStorage.setItem("agf_session_time", Date.now().toString()); // ADD
     sessionStorage.setItem(JUST_LOGGED_IN_KEY, "1");
   },
 
@@ -62,6 +63,29 @@ export const authService = {
       return true;
     }
     return false;
+  },
+
+  // Refresh timestamp every time user opens the app
+  refreshSession: () => {
+    if (localStorage.getItem("agf_token")) {
+      localStorage.setItem("agf_session_time", Date.now().toString());
+    }
+  },
+
+  // Check if session is still valid (within 7 days)
+  isSessionValid: (): boolean => {
+    const token = localStorage.getItem("agf_token");
+    const savedTime = localStorage.getItem("agf_session_time");
+    if (!token || !savedTime) return false;
+    const elapsed = Date.now() - parseInt(savedTime);
+    if (elapsed > SESSION_DURATION_MS) {
+      // Expired — clear everything
+      localStorage.removeItem("agf_token");
+      localStorage.removeItem("agf_user");
+      localStorage.removeItem("agf_session_time");
+      return false;
+    }
+    return true;
   },
 
   getToken: () => localStorage.getItem("agf_token"),
@@ -78,6 +102,7 @@ export const authService = {
   clearSession: () => {
     localStorage.removeItem("agf_token");
     localStorage.removeItem("agf_user");
+    localStorage.removeItem("agf_session_time"); // ADD
     sessionStorage.removeItem(JUST_LOGGED_IN_KEY);
   },
 
