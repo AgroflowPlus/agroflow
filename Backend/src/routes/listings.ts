@@ -7,6 +7,7 @@ import {
   sendWaitlistEmail,
   sendRequestEmailToSeller,
 } from '../services/emailService'
+import { notifyNewListing, notifyNewRequest } from '../services/notificationService'
 
 const router = Router()
 
@@ -264,6 +265,31 @@ router.post('/', protect, async (req: AuthRequest, res: Response) => {
       break
     }
 
+    // ── NOTIFY INTERESTED BUYERS ──────────────────────────────────────────
+    try {
+      // Get buyers who have pending demands for this crop type
+      const interestedBuyers = await prisma.buyer.findMany({
+        where: {
+          demands: { 
+            some: { 
+              cropType: listing.cropType, 
+              status: 'pending' 
+            } 
+          }
+        },
+        include: { user: true }
+      })
+
+      const buyerUserIds = interestedBuyers.map(b => b.userId)
+      if (buyerUserIds.length > 0) {
+        console.log(`🔔 Notifying ${buyerUserIds.length} buyers about new ${listing.cropType} listing`)
+        await notifyNewListing(buyerUserIds, listing.cropType, listing.location)
+      }
+    } catch (notifyError) {
+      // Don't fail the request if notification fails
+      console.error('Failed to send push notifications:', notifyError)
+    }
+
     res.status(201).json({
       message: 'Listing posted successfully',
       listing: {
@@ -420,7 +446,20 @@ router.post('/:listingId/request', protect, async (req: AuthRequest, res: Respon
 
     const listing = await prisma.listing.findUnique({
       where:   { id: listingId },
-      include: { seller: { include: { user: true } } },
+      include: { 
+        seller: { 
+          include: { 
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+              }
+            } 
+          } 
+        } 
+      },
     })
 
     if (!listing) {
@@ -453,6 +492,21 @@ router.post('/:listingId/request', protect, async (req: AuthRequest, res: Respon
       quantity:    Number(quantity),
       message:     message || undefined,
     })
+
+    // ── NOTIFY SELLER ABOUT NEW REQUEST ────────────────────────────────
+    try {
+      if (listing.seller?.user?.id) {
+        console.log(`🔔 Notifying seller ${listing.seller.user.id} about new request for ${listing.cropType}`)
+        await notifyNewRequest(
+          listing.seller.user.id,
+          listing.cropType,
+          Number(quantity)
+        )
+      }
+    } catch (notifyError) {
+      // Don't fail the request if notification fails
+      console.error('Failed to send new request notification:', notifyError)
+    }
 
     res.status(201).json({
       message: 'Request sent successfully',
@@ -915,8 +969,8 @@ router.delete('/:listingId', protect, async (req: AuthRequest, res: Response) =>
     
     res.json({ message: 'Listing deleted successfully' });
   } catch (error) {
-    console.error('Delete listing error:', error);
-    res.status(500).json({ error: 'Failed to delete listing' });
+    console.error('Delete listing error:', error)
+    res.status(500).json({ error: 'Failed to delete listing' })
   }
 });
 

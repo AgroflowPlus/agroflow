@@ -47,6 +47,7 @@ import { CROP_ICON } from "../BuyerSellerDashboard/constants";
 import { useCartStore } from "../../store/cartStore";
 import { useFavoritesStore } from "../../store/favoritesStore";
 import { LoadingButton } from "../../components/LoadingButton/LoadingButton";
+import { NotificationToggle } from "../../components/NotificationToggle/NotificationToggle";
 import PageLoader from "../../components/PageLoader/PageLoader";
 import styles from "./BuyerSellerDashboard.module.css";
 
@@ -902,14 +903,20 @@ export default function BuyerDashboard() {
           )}
 
           {section === "settings" && (
-            <SectionSettings
-              user={user}
-              onUpdate={(updatedUser) => {
-                setUser(updatedUser);
-                refresh();
-                addToast("Profile updated successfully!", "success");
-              }}
-            />
+            <>
+              <SectionSettings
+                user={user}
+                onUpdate={(updatedUser) => {
+                  setUser(updatedUser);
+                  refresh();
+                  addToast("Profile updated successfully!", "success");
+                }}
+              />
+              {/* ── Notification Toggle ────────────────────────────────────── */}
+              <div style={{ padding: '0 20px 20px' }}>
+                <NotificationToggle />
+              </div>
+            </>
           )}
 
           {/* ── Fix 1: Scroll to top button ─────────────── */}

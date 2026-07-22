@@ -1,6 +1,7 @@
 import { Router, Response } from 'express'
 import prisma from '../db/index'
 import { protect, AuthRequest } from '../middleware/auth'
+import { notifyOrderStatusUpdate } from '../services/notificationService'
 
 const router = Router()
 
@@ -206,7 +207,7 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       where: { userId },
     })
 
-    // Get the order
+    // Get the order with buyer and seller details
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -230,6 +231,11 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
                 email: true,
               },
             },
+          },
+        },
+        match: {
+          include: {
+            listing: true,
           },
         },
       },
@@ -356,6 +362,22 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       },
     })
 
+    // ── NOTIFY BUYER ABOUT ORDER STATUS UPDATE ──────────────────────────
+    try {
+      if (updatedOrder?.buyer?.userId) {
+        const cropType = updatedOrder.match?.cropType || updatedOrder.match?.listing?.cropType || 'produce'
+        console.log(`🔔 Notifying buyer ${updatedOrder.buyer.userId} about order ${updatedOrder.id} status: ${status}`)
+        await notifyOrderStatusUpdate(
+          updatedOrder.buyer.userId,
+          status,
+          cropType
+        )
+      }
+    } catch (notifyError) {
+      // Don't fail the request if notification fails
+      console.error('Failed to send order status notification:', notifyError)
+    }
+
     // Parse statusHistory for response
     const formattedOrder = {
       ...updatedOrder,
@@ -414,6 +436,11 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
                 email: true,
               },
             },
+          },
+        },
+        match: {
+          include: {
+            listing: true,
           },
         },
       },
@@ -503,6 +530,21 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
         },
       },
     })
+
+    // ── NOTIFY BUYER ABOUT ORDER CANCELLATION ────────────────────────────
+    try {
+      if (updatedOrder?.buyer?.userId) {
+        const cropType = updatedOrder.match?.cropType || updatedOrder.match?.listing?.cropType || 'produce'
+        console.log(`🔔 Notifying buyer ${updatedOrder.buyer.userId} about order ${updatedOrder.id} cancellation`)
+        await notifyOrderStatusUpdate(
+          updatedOrder.buyer.userId,
+          'cancelled',
+          cropType
+        )
+      }
+    } catch (notifyError) {
+      console.error('Failed to send order cancellation notification:', notifyError)
+    }
 
     // Parse statusHistory for response
     const formattedOrder = {

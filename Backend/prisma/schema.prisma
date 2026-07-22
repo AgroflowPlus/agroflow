@@ -25,6 +25,7 @@ model User {
   farmer       Farmer?
   seller       Seller?
   reviews      Review[]      @relation("UserReviews")
+  pushSubscriptions PushSubscription[]
 }
 
 model Farmer {
@@ -198,6 +199,16 @@ model Review {
   rating     Int
   comment    String?  @db.Text
   createdAt  DateTime @default(now())
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
 }
 
 model Alert {

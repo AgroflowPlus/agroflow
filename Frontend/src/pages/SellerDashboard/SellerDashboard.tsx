@@ -35,6 +35,7 @@ import { SectionNotifications } from "../BuyerSellerDashboard/sections/SectionNo
 import { SectionSettings } from "../BuyerSellerDashboard/sections/SectionSettings";
 import { SectionPostListing } from "../BuyerSellerDashboard/sections/SectionPostListing";
 import { SectionOrders } from "../BuyerSellerDashboard/sections/SectionOrders";
+import { NotificationToggle } from "../../components/NotificationToggle/NotificationToggle";
 import FloatingAI from "../../components/FloatingAI/FloatingAI";
 import styles from "../BuyerSellerDashboard/BuyerSellerDashboard.module.css";
 
@@ -432,14 +433,20 @@ export default function SellerDashboard() {
               />
             )}
             {section === "settings" && (
-              <SectionSettings
-                user={user}
-                onUpdate={(updatedUser) => {
-                  setUser(updatedUser);
-                  refresh();
-                  addToast("Profile updated successfully!", "success");
-                }}
-              />
+              <>
+                <SectionSettings
+                  user={user}
+                  onUpdate={(updatedUser) => {
+                    setUser(updatedUser);
+                    refresh();
+                    addToast("Profile updated successfully!", "success");
+                  }}
+                />
+                {/* ── Notification Toggle ────────────────────────────────────── */}
+                <div style={{ padding: '0 20px 20px' }}>
+                  <NotificationToggle />
+                </div>
+              </>
             )}
 
             {/* ── Scroll to top button ────────────────────────────────── */}

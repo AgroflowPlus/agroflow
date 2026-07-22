@@ -15,6 +15,7 @@ import roleRoutes from "./routes/role";
 import voiceRoutes from "./routes/voice";
 import ordersRouter from "./routes/orders";
 import reviewsRouter from "./routes/reviews";
+import pushRouter from './routes/push'
 import prisma from "./db/index";
 
 if (process.env.NODE_ENV !== "production") {
@@ -62,6 +63,7 @@ app.use("/api/role", roleRoutes);
 app.use("/api/voice", voiceRoutes);
 app.use("/api/orders", ordersRouter);
 app.use("/api/reviews", reviewsRouter);
+app.use('/api/push', pushRouter)
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Route not found" });
