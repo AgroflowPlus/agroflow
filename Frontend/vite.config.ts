@@ -7,11 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: 'auto',
-      strategies: 'injectManifest',
-      srcDir: 'public',
-      filename: 'sw.js',
-      includeAssets: ['favicon.ico', 'icons/*.png'],
+      includeAssets: ['favicon.ico', 'icons/*.png', 'push-sw.js'],
       manifest: {
         name: 'AgroFlow+',
         short_name: 'AgroFlow+',
@@ -26,9 +22,10 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,woff2}'], // removed svg
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3MB limit
-        globIgnores: ['**/favicon.svg'], // ignore the large SVG
+        globPatterns: ['**/*.{js,css,html,ico,png,woff2}'],
+        globIgnores: ['**/favicon.svg'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        importScripts: ['/push-sw.js'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/ai-farmer-platform-backend-code\.onrender\.com\/api\/listings/,
@@ -36,14 +33,6 @@ export default defineConfig({
             options: {
               cacheName: 'api-listings',
               expiration: { maxEntries: 50, maxAgeSeconds: 300 },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/images\.unsplash\.com/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'unsplash-images',
-              expiration: { maxEntries: 100, maxAgeSeconds: 86400 },
             },
           },
         ],
