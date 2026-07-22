@@ -110,6 +110,7 @@ export default function BuyerDashboard() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [submittingRequest, setSubmittingRequest] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [newListingsCount, setNewListingsCount] = useState(0);
 
   // AI Recommendations State
   const [aiRecommendations, setAIRecommendations] = useState<any[]>([]);
@@ -166,23 +167,29 @@ export default function BuyerDashboard() {
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // ── PATCH: Add polling — re-fetches listings every 30 seconds ────────────
-  useEffect(() => {
-    refresh();
-    loadAIRecommendations();
-
-    // Poll every 30 seconds — buyer sees new listings without refreshing
-    const interval = setInterval(() => {
-      refresh();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  async function refresh() {
+  // ── INITIAL LOAD — shows PageLoader ──────────────────────────
+  async function initialLoad() {
     setLoading(true);
     try {
-      // Run all independently — don't let one failure block listings
+      const [listingsData, matchesData, waitlistData, ordersData] = await Promise.allSettled([
+        marketService.getListings(user.location),
+        marketService.getMatches(),
+        marketService.getWaitlist(),
+        marketService.getOrders(),
+      ]);
+      if (listingsData.status === 'fulfilled') setListings(listingsData.value);
+      if (matchesData.status === 'fulfilled') setMatches(matchesData.value);
+      if (waitlistData.status === 'fulfilled') setWaitlist(waitlistData.value);
+      if (ordersData.status === 'fulfilled') setOrders(ordersData.value);
+      setNotifs(marketService.getNotifications(user.id));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── SILENT BACKGROUND REFRESH — no loader, no interruption ───
+  async function refresh() {
+    try {
       const [listingsData, matchesData, waitlistData, ordersData] = await Promise.allSettled([
         marketService.getListings(user.location),
         marketService.getMatches(),
@@ -190,18 +197,24 @@ export default function BuyerDashboard() {
         marketService.getOrders(),
       ]);
 
-      // Only set data if successful
-      if (listingsData.status === 'fulfilled') setListings(listingsData.value);
+      if (listingsData.status === 'fulfilled') {
+        const newData = listingsData.value;
+        setListings(prev => {
+          if (newData.length > prev.length) {
+            setNewListingsCount(newData.length - prev.length);
+            setTimeout(() => setNewListingsCount(0), 4000);
+          }
+          return newData;
+        });
+      }
       if (matchesData.status === 'fulfilled') setMatches(matchesData.value);
       if (waitlistData.status === 'fulfilled') setWaitlist(waitlistData.value);
       if (ordersData.status === 'fulfilled') setOrders(ordersData.value);
-
       setNotifs(marketService.getNotifications(user.id));
     } catch (err) {
-      console.error("Refresh error:", err);
-    } finally {
-      setLoading(false);
+      console.error("Silent refresh error:", err);
     }
+    // NO setLoading — completely silent
   }
 
   const loadAIRecommendations = async () => {
@@ -309,7 +322,7 @@ export default function BuyerDashboard() {
     remainingQty: rec.quantity,
     location: rec.location,
     description: "",
-    photoUrl: rec.photoUrl,
+    photoUrl: rec.photoUrl ?? undefined,
     status: "available",
     createdAt: new Date().toISOString(),
     distance: rec.distance,
@@ -406,6 +419,18 @@ export default function BuyerDashboard() {
   const visibleRecommendations = showAllRecommendations
     ? aiListings
     : aiListings.slice(0, initialCount);
+
+  // ── Initial load + polling ──────────────────────────────────────
+  useEffect(() => {
+    initialLoad();
+    loadAIRecommendations();
+
+    const interval = setInterval(() => {
+      refresh(); // silent — no loader
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   if (loading) return <PageLoader />;
 
@@ -707,6 +732,28 @@ export default function BuyerDashboard() {
         >
           {section === "marketplace" && (
             <>
+              {/* ── New Listings Notification ────────────────────────────────── */}
+              {newListingsCount > 0 && (
+                <div style={{
+                  position: 'fixed',
+                  top: 70,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: '#2d6a35',
+                  color: '#fff',
+                  padding: '8px 18px',
+                  borderRadius: 100,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  zIndex: 100,
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
+                  animation: 'fadeIn 0.3s ease',
+                  whiteSpace: 'nowrap',
+                }}>
+                  🌾 {newListingsCount} new listing{newListingsCount > 1 ? 's' : ''} available
+                </div>
+              )}
+
               {/* ── Fix 2: Show AI Recommendations pill ────────────────────────── */}
               {!showAIRecommendations && aiListings.length > 0 && (
                 <button
