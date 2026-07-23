@@ -69,23 +69,27 @@ export function usePushNotifications() {
   }
 
   const subscribe = async (): Promise<boolean> => {
-    console.log('🔔 Subscribe called - isSupported:', isSupported, 'VAPID key:', !!VAPID_PUBLIC_KEY)
-    if (!isSupported || !VAPID_PUBLIC_KEY) {
-      console.error('🔔 Cannot subscribe - not supported or missing VAPID key')
-      return false
-    }
+    if (!isSupported || !VAPID_PUBLIC_KEY) return false
     setIsLoading(true)
+
+    // Safety timeout — stop spinning after 10 seconds no matter what
+    const timeout = setTimeout(() => {
+      console.log('🔔 Subscribe timeout after 10 seconds - resetting loading state')
+      setIsLoading(false)
+    }, 10000)
+
     try {
       const permission = await Notification.requestPermission()
       console.log('🔔 Notification permission:', permission)
       if (permission !== 'granted') {
-        console.error('🔔 Permission denied')
+        clearTimeout(timeout)
+        setIsLoading(false)
         return false
       }
 
       const reg = await navigator.serviceWorker.ready
-      console.log('🔔 Service worker ready:', !!reg)
-
+      console.log('🔔 SW ready, subscribing...')
+      
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
@@ -98,18 +102,29 @@ export function usePushNotifications() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(sub.toJSON()),
       })
-
+      
+      console.log('🔔 Server response status:', response.status)
+      
       if (!response.ok) {
-        throw new Error('Failed to save subscription to backend')
+        const errorText = await response.text()
+        console.error('🔔 Server error response:', errorText)
+        clearTimeout(timeout)
+        setIsLoading(false)
+        return false
       }
 
+      const responseData = await response.json()
+      console.log('🔔 Server response data:', responseData)
+
+      clearTimeout(timeout)
       setIsSubscribed(true)
-      return true
-    } catch (err) {
-      console.error('🔔 Subscribe error:', err)
-      return false
-    } finally {
       setIsLoading(false)
+      return true
+    } catch (err: any) {
+      console.error('🔔 Subscribe failed:', err.message, err)
+      clearTimeout(timeout)
+      setIsLoading(false)
+      return false
     }
   }
 
@@ -122,17 +137,24 @@ export function usePushNotifications() {
       if (sub) {
         console.log('🔔 Unsubscribing from:', sub.endpoint)
         const token = authService.getToken()
-        await fetch(`${BASE_URL}/push/unsubscribe`, {
+        const response = await fetch(`${BASE_URL}/push/unsubscribe`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ endpoint: sub.endpoint }),
         })
+        console.log('🔔 Unsubscribe server response:', response.status)
         await sub.unsubscribe()
         setIsSubscribed(false)
         console.log('🔔 Unsubscribed successfully')
+      } else {
+        console.log('🔔 No active subscription to unsubscribe')
       }
     } catch (error) {
       console.error('🔔 Unsubscribe error:', error)
+      if (error instanceof Error) {
+        console.error('🔔 Error name:', error.name)
+        console.error('🔔 Error message:', error.message)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -142,15 +164,33 @@ export function usePushNotifications() {
     console.log('🔔 Sending test notification...')
     try {
       const token = authService.getToken()
+      if (!token) {
+        console.error('🔔 No auth token available')
+        throw new Error('Not authenticated')
+      }
+      
       const response = await fetch(`${BASE_URL}/push/test`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
       })
+      
       const data = await response.json()
       console.log('🔔 Test notification response:', data)
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send test notification')
+      }
+      
       return data
     } catch (error) {
       console.error('🔔 Test notification error:', error)
+      if (error instanceof Error) {
+        console.error('🔔 Error name:', error.name)
+        console.error('🔔 Error message:', error.message)
+      }
       throw error
     }
   }
