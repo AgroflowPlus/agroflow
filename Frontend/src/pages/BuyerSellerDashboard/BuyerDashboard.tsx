@@ -329,12 +329,6 @@ export default function BuyerDashboard() {
     distance: rec.distance,
   }));
 
-  // ── TEMPORARY DEBUG LOG ──────────────────────────────────
-  console.log(
-    "AI listings:",
-    aiListings.map((l) => ({ id: l.id, photoUrl: l.photoUrl })),
-  );
-  console.log("AI recommendations raw:", aiRecommendations);
 
   const initialCount: number = isMobile ? 2 : 3;
 

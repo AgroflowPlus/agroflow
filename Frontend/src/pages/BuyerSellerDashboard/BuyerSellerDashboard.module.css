@@ -2546,7 +2546,7 @@ input:checked + .slider:before {
   bottom: 26px;
   left: 0;
   right: 0;
-  background: rgba(0,0,0,0.38);
+  background: rgba(0,0,0,0.7);
   backdrop-filter: blur(6px);
   padding: 6px 10px;
   display: flex;

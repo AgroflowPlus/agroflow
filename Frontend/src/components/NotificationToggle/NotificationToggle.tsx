@@ -1,16 +1,17 @@
-import { usePushNotifications } from '../../hooks/usePushNotifications'
-import { LoadingButton } from '../LoadingButton/LoadingButton'
-import { RiBellLine, RiNotificationOffLine } from 'react-icons/ri';
+// import { useEffect } from 'react';
+import { usePushNotifications } from '../../hooks/usePushNotifications';
+import { LoadingButton } from '../LoadingButton/LoadingButton';
+import { RiBellLine, RiBellFill } from 'react-icons/ri';
 
 export function NotificationToggle() {
-  const { isSubscribed, isSupported, isLoading, subscribe, unsubscribe, sendTestNotification } = usePushNotifications()
+  const { isSubscribed, isSupported, isLoading, subscribe, unsubscribe, sendTestNotification } = usePushNotifications();
 
   if (!isSupported) {
     return (
       <div style={{ fontSize: 13, color: '#9ead9f', padding: '8px 0' }}>
         Push notifications not supported on this device.
       </div>
-    )
+    );
   }
 
   return (
@@ -32,15 +33,24 @@ export function NotificationToggle() {
           loading={isLoading}
           onClick={isSubscribed ? unsubscribe : subscribe}
           style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '8px 16px', borderRadius: 100,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 16px',
+            borderRadius: 100,
             background: isSubscribed ? '#f7f8f5' : '#a8d832',
             border: isSubscribed ? '1.5px solid #eaeee8' : 'none',
             color: isSubscribed ? '#e05252' : '#141f15',
-            fontWeight: 600, fontSize: 13, cursor: 'pointer',
+            fontWeight: 600,
+            fontSize: 13,
+            cursor: 'pointer',
           }}
         >
-          {isSubscribed ? <><RiNotificationOffLine size={14} /> Turn Off</> : <><RiBellLine size={14} /> Enable</>}
+          {isSubscribed ? (
+            <><RiBellFill size={14} /> Turn Off</>
+          ) : (
+            <><RiBellLine size={14} /> Enable</>
+          )}
         </LoadingButton>
       </div>
 
@@ -48,15 +58,20 @@ export function NotificationToggle() {
         <button
           onClick={sendTestNotification}
           style={{
-            padding: '8px 16px', borderRadius: 10,
-            background: '#f2f9e4', border: '1.5px solid #a8d832',
-            color: '#2d6a35', fontSize: 12, fontWeight: 600,
-            cursor: 'pointer', alignSelf: 'flex-start',
+            padding: '8px 16px',
+            borderRadius: 10,
+            background: '#f2f9e4',
+            border: '1.5px solid #a8d832',
+            color: '#2d6a35',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            alignSelf: 'flex-start',
           }}
         >
           Send Test Notification
         </button>
       )}
     </div>
-  )
+  );
 }
