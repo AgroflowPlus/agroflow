@@ -47,7 +47,7 @@ import { CROP_ICON } from "../BuyerSellerDashboard/constants";
 import { useCartStore } from "../../store/cartStore";
 import { useFavoritesStore } from "../../store/favoritesStore";
 import { LoadingButton } from "../../components/LoadingButton/LoadingButton";
-import { NotificationToggle } from "../../components/NotificationToggle/NotificationToggle";
+// import { NotificationToggle } from "../../components/NotificationToggle/NotificationToggle";
 import PageLoader from "../../components/PageLoader/PageLoader";
 import styles from "./BuyerSellerDashboard.module.css";
 
@@ -669,7 +669,7 @@ export default function BuyerDashboard() {
           ))}
         </nav>
         <div className={styles.sidebarBottom}>
-          <button
+          {/* <button
             className={styles.sidebarBtn}
             onClick={() => {
               setSection("settings");
@@ -677,7 +677,7 @@ export default function BuyerDashboard() {
             }}
           >
             <RiSettings4Line size={15} /> Settings
-          </button>
+          </button> */}
           <button
             className={`${styles.sidebarBtn} ${styles.sidebarBtnDanger}`}
             onClick={handleLogout}
@@ -907,9 +907,9 @@ export default function BuyerDashboard() {
                 }}
               />
               {/* ── Notification Toggle ────────────────────────────────────── */}
-              <div style={{ padding: '0 20px 20px' }}>
+              {/* <div style={{ padding: '0 20px 20px' }}>
                 <NotificationToggle />
-              </div>
+              </div> */}
             </>
           )}
 

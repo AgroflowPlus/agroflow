@@ -3,7 +3,7 @@ import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { RiBellLine, RiNotificationOffLine } from 'react-icons/ri';
 
 export function NotificationToggle() {
-  const { isSubscribed, isSupported, isLoading, subscribe, unsubscribe, sendTestNotification } = usePushNotifications();
+  const { isSubscribed, isSupported, isLoading, subscribe, unsubscribe } = usePushNotifications();
 
   useEffect(() => {
     console.log('🔔 NotificationToggle - isSubscribed:', isSubscribed);
@@ -121,7 +121,7 @@ export function NotificationToggle() {
       </div>
 
       {/* Test button — only when subscribed */}
-      {isSubscribed && (
+      {/* {isSubscribed && (
         <button
           onClick={sendTestNotification}
           style={{
@@ -147,7 +147,7 @@ export function NotificationToggle() {
         >
           Send Test Notification
         </button>
-      )}
+      )} */}
     </div>
   );
 }

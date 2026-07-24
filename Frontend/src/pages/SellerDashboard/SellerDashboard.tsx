@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect} from "react";
 import { useNavigate } from "react-router-dom";
 import {
   RiLeafFill,
@@ -35,7 +35,6 @@ import { SectionNotifications } from "../BuyerSellerDashboard/sections/SectionNo
 import { SectionSettings } from "../BuyerSellerDashboard/sections/SectionSettings";
 import { SectionPostListing } from "../BuyerSellerDashboard/sections/SectionPostListing";
 import { SectionOrders } from "../BuyerSellerDashboard/sections/SectionOrders";
-import { NotificationToggle } from "../../components/NotificationToggle/NotificationToggle";
 import FloatingAI from "../../components/FloatingAI/FloatingAI";
 import styles from "../BuyerSellerDashboard/BuyerSellerDashboard.module.css";
 
@@ -85,10 +84,6 @@ export default function SellerDashboard() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // ── Scroll to top ──────────────────────────────────────────────
-  const [showScrollTop, setShowScrollTop] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-
   // ── Prevent back button from closing the app ──────────────────────────
   useEffect(() => {
     window.history.pushState(null, '', window.location.href);
@@ -104,19 +99,6 @@ export default function SellerDashboard() {
   useEffect(() => {
     refresh();
   }, []);
-
-  // ── Detect scroll for scroll-to-top button ──────────────────────────
-  useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    const onScroll = () => setShowScrollTop(el.scrollTop > 300);
-    el.addEventListener("scroll", onScroll);
-    return () => el.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const scrollToTop = () => {
-    contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-  };
 
   async function refresh() {
     try {
@@ -383,11 +365,7 @@ export default function SellerDashboard() {
             </div>
           </div>
 
-          <div
-            ref={contentRef}
-            className={styles.content}
-            style={{ overflowY: "auto", maxHeight: "calc(100vh - 120px)", paddingBottom: 80 }}
-          >
+          <div className={styles.content}>
             {section === "dashboard" && (
               <SectionDashboard
                 listings={myListings}
@@ -433,55 +411,14 @@ export default function SellerDashboard() {
               />
             )}
             {section === "settings" && (
-              <>
-                <SectionSettings
-                  user={user}
-                  onUpdate={(updatedUser) => {
-                    setUser(updatedUser);
-                    refresh();
-                    addToast("Profile updated successfully!", "success");
-                  }}
-                />
-                {/* ── Notification Toggle ────────────────────────────────────── */}
-                <div style={{ padding: '0 20px 20px' }}>
-                  <NotificationToggle />
-                </div>
-              </>
-            )}
-
-            {/* ── Scroll to top button ────────────────────────────────── */}
-            {showScrollTop && (
-              <button
-                onClick={scrollToTop}
-                style={{
-                  position: "fixed",
-                  bottom: 90,
-                  right: 16,
-                  width: 40,
-                  height: 40,
-                  borderRadius: "50%",
-                  background: "#2d6a35",
-                  color: "#fff",
-                  border: "none",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
-                  zIndex: 100,
-                  fontSize: 18,
-                  transition: "all 0.2s ease",
+              <SectionSettings
+                user={user}
+                onUpdate={(updatedUser) => {
+                  setUser(updatedUser);
+                  refresh();
+                  addToast("Profile updated successfully!", "success");
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "scale(1.1)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "scale(1)";
-                }}
-                aria-label="Scroll to top"
-              >
-                ↑
-              </button>
+              />
             )}
           </div>
 
