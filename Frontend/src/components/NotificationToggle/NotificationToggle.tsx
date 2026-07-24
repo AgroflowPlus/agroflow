@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
-import { RiBellLine, RiBellFill } from 'react-icons/ri';
+import { RiBellLine, RiNotificationOffLine } from 'react-icons/ri';
 
 export function NotificationToggle() {
   const { isSubscribed, isSupported, isLoading, subscribe, unsubscribe, sendTestNotification } = usePushNotifications();
@@ -11,7 +11,7 @@ export function NotificationToggle() {
     console.log('🔔 NotificationToggle - isLoading:', isLoading);
   }, [isSubscribed, isSupported, isLoading]);
 
-  // ── Development mode message ──────────────────────────────────────────
+  // ── Development mode message ──────────────────────
   const isDev = import.meta.env.DEV;
 
   if (isDev) {
@@ -49,20 +49,24 @@ export function NotificationToggle() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Toggle row */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 36,
             height: 36,
-            borderRadius: '50%',
+            borderRadius: 10,
             background: isSubscribed ? '#f2f9e4' : '#f7f8f5',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: isSubscribed ? '#2d6a35' : '#9ead9f',
+            flexShrink: 0,
           }}>
-            {isSubscribed ? <RiBellFill size={18} /> : <RiBellLine size={18} />}
+            {isSubscribed
+              ? <RiBellLine size={18} color="#2d6a35" />
+              : <RiNotificationOffLine size={18} color="#9ead9f" />
+            }
           </div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#141f15' }}>
@@ -71,20 +75,19 @@ export function NotificationToggle() {
             <div style={{ fontSize: 12, color: '#9ead9f', marginTop: 2 }}>
               {isSubscribed
                 ? 'You will receive real-time updates'
-                : 'Enable to get instant notifications'
+                : 'Enable to get notified about orders and listings'
               }
             </div>
           </div>
         </div>
 
-        {/* Toggle Switch */}
+        {/* Toggle switch */}
         <label style={{
           position: 'relative',
           display: 'inline-block',
-          width: 50,
+          width: 48,
           height: 26,
           cursor: isLoading ? 'not-allowed' : 'pointer',
-          opacity: isLoading ? 0.6 : 1,
           flexShrink: 0,
         }}>
           <input
@@ -99,39 +102,47 @@ export function NotificationToggle() {
             inset: 0,
             background: isSubscribed ? '#a8d832' : '#e2e8df',
             borderRadius: 34,
-            transition: '0.3s',
-            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)',
+            transition: 'background 0.3s',
+            opacity: isLoading ? 0.6 : 1,
           }}>
             <span style={{
               position: 'absolute',
               height: 20,
               width: 20,
-              left: isSubscribed ? 27 : 3,
+              left: isSubscribed ? 24 : 3,
               bottom: 3,
               background: 'white',
               borderRadius: '50%',
-              transition: '0.3s',
+              transition: 'left 0.3s',
               boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
             }} />
           </span>
         </label>
       </div>
 
-      {/* Test Button */}
+      {/* Test button — only when subscribed */}
       {isSubscribed && (
         <button
           onClick={sendTestNotification}
           style={{
-            padding: '8px 16px',
+            padding: '10px 16px',
             borderRadius: 10,
             background: '#f2f9e4',
             border: '1.5px solid #a8d832',
             color: '#2d6a35',
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: 600,
             cursor: 'pointer',
             alignSelf: 'flex-start',
-            marginTop: 4,
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#a8d832';
+            e.currentTarget.style.color = '#141f15';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = '#f2f9e4';
+            e.currentTarget.style.color = '#2d6a35';
           }}
         >
           Send Test Notification

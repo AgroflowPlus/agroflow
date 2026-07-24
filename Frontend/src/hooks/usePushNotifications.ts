@@ -33,38 +33,35 @@ export function usePushNotifications() {
     setIsSupported(supported)
 
     if (supported) {
-      checkSubscription().then(() => {
-        // Auto-subscribe if running as PWA and not already subscribed
+      checkSubscription().then(async (alreadySubscribed) => {
+        console.log('🔔 Already subscribed:', alreadySubscribed)
+        
+        // Auto-subscribe if running as installed PWA and not already subscribed
         const isPWA = window.matchMedia('(display-mode: standalone)').matches
         console.log('🔔 Is PWA:', isPWA)
         
-        if (isPWA) {
-          navigator.serviceWorker.ready.then(async (reg) => {
-            const existing = await reg.pushManager.getSubscription()
-            console.log('🔔 Existing subscription:', existing ? 'Yes' : 'No')
-            if (!existing) {
-              console.log('🔔 Auto-subscribing for PWA...')
-              // Small delay to let the user see the permission prompt
-              setTimeout(() => {
-                subscribe()
-              }, 1000)
-            }
-          })
+        if (isPWA && !alreadySubscribed) {
+          console.log('🔔 PWA detected — auto-subscribing...')
+          // Small delay to let the user see the permission prompt
+          setTimeout(() => {
+            subscribe()
+          }, 1000)
         }
       })
     }
   }, [])
 
-  const checkSubscription = async () => {
+  const checkSubscription = async (): Promise<boolean> => {
     try {
       const reg = await navigator.serviceWorker.ready
       const sub = await reg.pushManager.getSubscription()
-      console.log('🔔 Current subscription:', sub ? 'Active' : 'None')
-      setIsSubscribed(!!sub)
-      return sub
+      const hasSubscription = !!sub
+      console.log('🔔 Current subscription:', hasSubscription ? 'Active' : 'None')
+      setIsSubscribed(hasSubscription)
+      return hasSubscription
     } catch (error) {
       console.error('🔔 Check subscription error:', error)
-      return null
+      return false
     }
   }
 

@@ -116,7 +116,7 @@ export function SectionSettings({ user, onUpdate }: SectionSettingsProps) {
         </div>
       </div>
 
-      {/* Notifications Card */}
+      {/* Notifications Card - Moved to the very bottom */}
       <div className={styles.settingsCard} style={{ marginTop: 16 }}>
         <div className={styles.settingsSection}>
           <h3 className={styles.settingsSectionTitle}>Notifications</h3>
