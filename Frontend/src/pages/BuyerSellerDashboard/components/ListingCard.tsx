@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useState } from "react";
 import { RiMapPinLine } from "react-icons/ri";
-import { MdAddShoppingCart, MdFavorite, MdFavoriteBorder } from "react-icons/md";
+import {
+  MdAddShoppingCart,
+  MdFavorite,
+  MdFavoriteBorder,
+} from "react-icons/md";
 import { CROP_ICON } from "../constants";
 import styles from "../BuyerSellerDashboard.module.css";
 import type { Listing, CropType } from "../../../services/marketService";
-import { useCartStore } from '../../../store/cartStore';
-import { useFavoritesStore } from '../../../store/favoritesStore';
-import { useToast } from '../../../context/ToastContext';
+import { useCartStore } from "../../../store/cartStore";
+import { useFavoritesStore } from "../../../store/favoritesStore";
+import { useToast } from "../../../context/ToastContext";
 
 interface ListingCardProps {
   listing: Listing;
@@ -17,16 +21,20 @@ interface ListingCardProps {
   matchReasons?: string[];
 }
 
-export function ListingCard({ 
-  listing, intent, onClick, matchScore, matchReasons = []
+export function ListingCard({
+  listing,
+  intent,
+  onClick,
+  matchScore,
+  matchReasons = [],
 }: ListingCardProps) {
   const [showReasons, setShowReasons] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
 
-  const addItem    = useCartStore(s => s.addItem);
-  const removeItem = useCartStore(s => s.removeItem);
-  const cartItems  = useCartStore(s => s.items);
-  const inCart     = cartItems.some(i => i.listing.id === listing.id);
+  const addItem = useCartStore((s) => s.addItem);
+  const removeItem = useCartStore((s) => s.removeItem);
+  const cartItems = useCartStore((s) => s.items);
+  const inCart = cartItems.some((i) => i.listing.id === listing.id);
 
   const { toggleListing, isLiked } = useFavoritesStore();
   const liked = isLiked(listing.id);
@@ -43,14 +51,14 @@ export function ListingCard({
     // Toggle — if in cart remove, if not add
     if (inCart) {
       removeItem(listing.id);
-      addToast('Removed from cart', 'info');
+      addToast("Removed from cart", "info");
       return;
     }
 
     setIsAddingToCart(true);
     try {
       addItem(listing, 1);
-      addToast('Added to cart!', 'success');
+      addToast("Added to cart!", "success");
     } finally {
       setIsAddingToCart(false);
     }
@@ -60,15 +68,31 @@ export function ListingCard({
     <div
       className={styles.marketplaceCard}
       onClick={handleCardClick}
-      style={{ cursor: onClick ? 'pointer' : 'default', position: 'relative' }}
+      style={{ cursor: onClick ? "pointer" : "default", position: "relative" }}
     >
       {/* ── IMAGE AREA ── */}
       <div className={styles.cardImageArea}>
         {listing.photoUrl ? (
-          <img src={listing.photoUrl} alt={listing.cropType} className={styles.cardImage} />
+          <img
+            src={listing.photoUrl}
+            alt={listing.cropType}
+            className={styles.cardImage}
+          />
         ) : (
-          <div className={styles.cardImagePlaceholder}>
-            <span style={{ fontSize: 40 }}>{CROP_ICON[listing.cropType as CropType] || '🌾'}</span>
+          <div
+            className={styles.cardImagePlaceholder}
+            style={{
+              background: "linear-gradient(135deg, #f2f9e4, #e8f5d0)",
+              fontSize: 48,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "100%",
+              height: "100%",
+              minHeight: 140,
+            }}
+          >
+            {CROP_ICON[listing.cropType as CropType] || "🌾"}
           </div>
         )}
 
@@ -78,39 +102,54 @@ export function ListingCard({
         </div>
 
         {/* Heart — top right (buyer only) */}
-        {intent === 'buy' && (
+        {intent === "buy" && (
           <button
             className={styles.heartBtn}
             onClick={(e) => {
               e.stopPropagation();
               toggleListing(listing.id);
-              addToast(liked ? 'Removed from favorites' : 'Added to favorites', 'success');
+              addToast(
+                liked ? "Removed from favorites" : "Added to favorites",
+                "success",
+              );
             }}
-            aria-label={liked ? 'Remove from favorites' : 'Add to favorites'}
+            aria-label={liked ? "Remove from favorites" : "Add to favorites"}
           >
-            {liked
-              ? <MdFavorite size={16} color="#e05252" />
-              : <MdFavoriteBorder size={16} color="#9ead9f" />
-            }
+            {liked ? (
+              <MdFavorite size={16} color="#e05252" />
+            ) : (
+              <MdFavoriteBorder size={16} color="#9ead9f" />
+            )}
           </button>
         )}
 
         {/* Cart button — bottom right of image (buyer only) */}
-        {intent === 'buy' && listing.status !== 'sold' && (
+        {intent === "buy" && listing.status !== "sold" && (
           <button
             onClick={handleAddToCart}
             style={{
-              position: 'absolute', bottom: matchScore ? 32 : 8, right: 8,
-              width: 32, height: 32, borderRadius: '50%',
-              background: inCart ? '#a8d832' : 'rgba(255,255,255,0.95)',
-              border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-              zIndex: 2, transition: 'all 0.15s',
+              position: "absolute",
+              bottom: matchScore ? 32 : 8,
+              right: 8,
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              background: inCart ? "#a8d832" : "rgba(255,255,255,0.95)",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
+              zIndex: 2,
+              transition: "all 0.15s",
             }}
-            aria-label={inCart ? 'In cart' : 'Add to cart'}
+            aria-label={inCart ? "In cart" : "Add to cart"}
           >
-            <MdAddShoppingCart size={16} color={inCart ? '#141f15' : '#6b7f6e'} />
+            <MdAddShoppingCart
+              size={16}
+              color={inCart ? "#141f15" : "#6b7f6e"}
+            />
           </button>
         )}
 
@@ -120,14 +159,19 @@ export function ListingCard({
             <span className={styles.matchBadge}>{matchScore}% Match</span>
             <button
               className={styles.whyBtn}
-              onClick={(e) => { e.stopPropagation(); setShowReasons(r => !r) }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowReasons((r) => !r);
+              }}
             >
-              {showReasons ? 'Close ✕' : 'Why? →'}
+              {showReasons ? "Close ✕" : "Why? →"}
             </button>
             {showReasons && matchReasons.length > 0 && (
               <div className={styles.reasonsOverlay}>
                 {matchReasons.map((r, i) => (
-                  <span key={i} className={styles.reasonItem}>✓ {r}</span>
+                  <span key={i} className={styles.reasonItem}>
+                    ✓ {r}
+                  </span>
                 ))}
               </div>
             )}
@@ -135,7 +179,7 @@ export function ListingCard({
         )}
 
         {/* Sold overlay */}
-        {listing.status === 'sold' && (
+        {listing.status === "sold" && (
           <div className={styles.statusOverlay}>
             <span>Sold Out</span>
           </div>
@@ -143,37 +187,94 @@ export function ListingCard({
       </div>
 
       {/* ── MINIMAL INFO BELOW IMAGE ── */}
-      <div style={{ padding: '10px 10px 12px' }}>
+      <div style={{ padding: "10px 10px 12px" }}>
         {/* Seller + distance */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-          <div style={{
-            width: 22, height: 22, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #a8d832, #2d6a35)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 9, fontWeight: 700, color: '#141f15', flexShrink: 0,
-          }}>
-            {listing.sellerName?.charAt(0).toUpperCase() || 'S'}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            marginBottom: 6,
+          }}
+        >
+          <div
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, #a8d832, #2d6a35)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 9,
+              fontWeight: 700,
+              color: "#141f15",
+              flexShrink: 0,
+            }}
+          >
+            {listing.sellerName?.charAt(0).toUpperCase() || "S"}
           </div>
-          <span style={{ fontSize: 11, fontWeight: 600, color: '#141f15', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#141f15",
+              flex: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             {listing.sellerName}
           </span>
-          <span style={{ fontSize: 10, color: '#9ead9f', display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-            <RiMapPinLine size={9} /> {listing.distance || 'nearby'}
+          <span
+            style={{
+              fontSize: 10,
+              color: "#9ead9f",
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+              flexShrink: 0,
+            }}
+          >
+            <RiMapPinLine size={9} /> {listing.distance || "nearby"}
           </span>
         </div>
 
         {/* Quantity — prominent */}
-        <div style={{ fontSize: 17, fontWeight: 800, color: '#2d6a35', letterSpacing: '-0.02em' }}>
+        <div
+          style={{
+            fontSize: 17,
+            fontWeight: 800,
+            color: "#2d6a35",
+            letterSpacing: "-0.02em",
+          }}
+        >
           {listing.remainingQty}kg
-          <span style={{ fontSize: 10, fontWeight: 600, color: '#9ead9f', marginLeft: 4 }}>available</span>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: "#9ead9f",
+              marginLeft: 4,
+            }}
+          >
+            available
+          </span>
         </div>
 
         {/* Description — 1 line only */}
         {listing.description && (
-          <div style={{
-            fontSize: 10, color: '#9ead9f', marginTop: 3,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
+          <div
+            style={{
+              fontSize: 10,
+              color: "#9ead9f",
+              marginTop: 3,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             {listing.description}
           </div>
         )}

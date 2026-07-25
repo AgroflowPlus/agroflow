@@ -9,6 +9,56 @@ const router = Router()
 const getParam = (param: string | string[] | undefined): string =>
   Array.isArray(param) ? param[0] : param || ''
 
+// ── CREATE ORDER FROM MATCH ──────────────────────────────────
+export async function createOrderFromMatch(
+  matchId: string, 
+  buyerId: string, 
+  sellerId: string, 
+  quantity: number, 
+  listingId: string
+) {
+  // ── Check for duplicate order ──────────────────────────────
+  const existing = await prisma.order.findFirst({
+    where: { matchId }
+  })
+  if (existing) return existing
+
+  // ── Create order ────────────────────────────────────────────
+  const order = await prisma.order.create({
+    data: {
+      matchId, 
+      buyerId, 
+      sellerId,
+      status: 'placed',
+      statusHistory: JSON.stringify([
+        { status: 'placed', timestamp: new Date().toISOString(), note: 'Order placed' }
+      ])
+    }
+  })
+
+  // ── Update listing remaining quantity ──────────────────────
+  const listing = await prisma.listing.findUnique({ 
+    where: { id: listingId } 
+  })
+  
+  if (listing) {
+    const newQty = Math.max(0, listing.remainingQty - quantity)
+    const newStatus = newQty === 0 ? 'sold' : newQty < listing.quantity ? 'partial' : 'available'
+    
+    await prisma.listing.update({
+      where: { id: listingId },
+      data: {
+        remainingQty: newQty,
+        status: newStatus,
+      }
+    })
+    
+    console.log(`📦 Listing ${listingId} updated: remainingQty ${listing.remainingQty} → ${newQty}, status: ${newStatus}`)
+  }
+
+  return order
+}
+
 // ── GET ALL ORDERS FOR THE CURRENT USER ────────────────────
 router.get('/', protect, async (req: AuthRequest, res: Response) => {
   try {
@@ -473,6 +523,28 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
       return
     }
 
+    // ── When cancelling, restore listing quantity ──────────────────────
+    const listing = await prisma.listing.findUnique({
+      where: { id: order.match?.listingId }
+    })
+
+    if (listing) {
+      // Restore the quantity that was reserved for this order
+      const restoredQty = order.match?.quantity || 0
+      const newQty = listing.remainingQty + restoredQty
+      const newStatus = newQty > 0 ? 'available' : 'sold'
+      
+      await prisma.listing.update({
+        where: { id: listing.id },
+        data: {
+          remainingQty: newQty,
+          status: newStatus,
+        }
+      })
+      
+      console.log(`📦 Listing ${listing.id} restored: remainingQty ${listing.remainingQty} → ${newQty}, status: ${newStatus}`)
+    }
+
     // Parse existing status history
     let statusHistory: Array<{ status: string; timestamp: string; note?: string }> = []
     try {
@@ -531,7 +603,7 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
       },
     })
 
-    // ── NOTIFY BUYER ABOUT ORDER CANCELLATION ────────────────────────────
+    // ── NOTIFY BUYER ABOUT ORDER CANCELLATION ────────────
     try {
       if (updatedOrder?.buyer?.userId) {
         const cropType = updatedOrder.match?.cropType || updatedOrder.match?.listing?.cropType || 'produce'

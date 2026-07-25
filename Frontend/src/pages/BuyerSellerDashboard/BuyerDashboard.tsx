@@ -47,7 +47,6 @@ import { CROP_ICON } from "../BuyerSellerDashboard/constants";
 import { useCartStore } from "../../store/cartStore";
 import { useFavoritesStore } from "../../store/favoritesStore";
 import { LoadingButton } from "../../components/LoadingButton/LoadingButton";
-// import { NotificationToggle } from "../../components/NotificationToggle/NotificationToggle";
 import PageLoader from "../../components/PageLoader/PageLoader";
 import styles from "./BuyerSellerDashboard.module.css";
 
@@ -62,6 +61,8 @@ type Section =
   | "cart"
   | "saved"
   | "following";
+
+const SECTION_STORAGE_KEY = "buyer_section";
 
 export default function BuyerDashboard() {
   const navigate = useNavigate();
@@ -84,7 +85,22 @@ export default function BuyerDashboard() {
       .map((n: string) => n[0])
       .join("")
       .toUpperCase() ?? "BU";
-  const [section, setSection] = useState<Section>("marketplace");
+  
+  // ── Save section to sessionStorage and restore on mount ──────────────
+  const [section, setSection] = useState<Section>(() => {
+    const saved = sessionStorage.getItem(SECTION_STORAGE_KEY);
+    if (saved && ["marketplace", "buy", "matches", "waitlist", "notifications", "settings", "orders", "cart", "saved", "following"].includes(saved)) {
+      return saved as Section;
+    }
+    return "marketplace";
+  });
+
+  // ── Wrapped setSection that persists to sessionStorage ──────────────
+  const handleSetSection = (s: Section) => {
+    sessionStorage.setItem(SECTION_STORAGE_KEY, s);
+    setSection(s);
+  };
+
   const [sidebarOpen, setSidebar] = useState(false);
   const [cropFilter, setCropFilter] = useState<CropType | "All">("All");
   const [listings, setListings] = useState<Listing[]>([]);
@@ -119,7 +135,7 @@ export default function BuyerDashboard() {
   const [showAllRecommendations, setShowAllRecommendations] = useState(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
 
-  // ── Fix 1: Scroll to top ──────────────────────────────────────────────
+  // ── Scroll to top ──────────────────────────────────────────────
   const [showScrollTop, setShowScrollTop] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -131,11 +147,9 @@ export default function BuyerDashboard() {
 
   // ── Prevent back button from closing the app ──────────────────────────
   useEffect(() => {
-    // Push a state so there's always something to go back to
     window.history.pushState(null, '', window.location.href);
     
     const handlePopState = () => {
-      // When back is pressed, push state again to prevent closing
       window.history.pushState(null, '', window.location.href);
     };
     
@@ -155,20 +169,52 @@ export default function BuyerDashboard() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // ── Detect scroll for scroll-to-top button ──────────────────────────
+  // ── FIXED: Detect scroll for scroll-to-top button ──────────────────────────
   useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    const onScroll = () => setShowScrollTop(el.scrollTop > 300);
-    el.addEventListener("scroll", onScroll);
-    return () => el.removeEventListener("scroll", onScroll);
+    let scrollTimeout: ReturnType<typeof setTimeout>;
+    let isMounted = true;
+
+    const setupScrollListener = () => {
+      const el = contentRef.current;
+      if (!el) {
+        // Retry if ref isn't ready yet
+        scrollTimeout = setTimeout(setupScrollListener, 100);
+        return;
+      }
+
+      const onScroll = () => {
+        if (!isMounted) return;
+        const scrollTop = el.scrollTop;
+        setShowScrollTop(scrollTop > 300);
+      };
+
+      // Check initial position
+      onScroll();
+
+      el.addEventListener("scroll", onScroll);
+      
+      // Cleanup function for this listener
+      return () => {
+        el.removeEventListener("scroll", onScroll);
+      };
+    };
+
+    const cleanup = setupScrollListener();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(scrollTimeout);
+      if (typeof cleanup === 'function') {
+        cleanup();
+      }
+    };
   }, []);
 
   const scrollToTop = () => {
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // ── INITIAL LOAD — shows PageLoader ──────────────────────────
+  // ── INITIAL LOAD ──────────────────────────────────────────────
   async function initialLoad() {
     setLoading(true);
     try {
@@ -188,7 +234,7 @@ export default function BuyerDashboard() {
     }
   }
 
-  // ── SILENT BACKGROUND REFRESH — no loader, no interruption ───
+  // ── SILENT BACKGROUND REFRESH ────────────────────────────────
   async function refresh() {
     try {
       const [listingsData, matchesData, waitlistData, ordersData] = await Promise.allSettled([
@@ -215,7 +261,6 @@ export default function BuyerDashboard() {
     } catch (err) {
       console.error("Silent refresh error:", err);
     }
-    // NO setLoading — completely silent
   }
 
   const loadAIRecommendations = async () => {
@@ -231,7 +276,6 @@ export default function BuyerDashboard() {
 
   // Fetch followed sellers from listings with proper names
   const fetchFollowedSellers = () => {
-    // Build unique sellers from listings
     const uniqueSellers = listings.reduce((acc: any[], listing: any) => {
       if (listing.sellerId && !acc.find((s) => s.id === listing.sellerId)) {
         acc.push({
@@ -248,9 +292,7 @@ export default function BuyerDashboard() {
       return acc;
     }, []);
 
-    // Filter to only show followed sellers
     const followed = uniqueSellers.filter((s) => sellerIds.includes(s.id));
-
     setFollowedSellers(followed);
   };
 
@@ -421,7 +463,7 @@ export default function BuyerDashboard() {
     loadAIRecommendations();
 
     const interval = setInterval(() => {
-      refresh(); // silent — no loader
+      refresh();
     }, 30000);
 
     return () => clearInterval(interval);
@@ -656,7 +698,7 @@ export default function BuyerDashboard() {
               key={item.id}
               className={`${styles.navItem} ${section === item.id ? styles.navItemActive : ""}`}
               onClick={() => {
-                setSection(item.id);
+                handleSetSection(item.id);
                 setSidebar(false);
               }}
             >
@@ -669,15 +711,6 @@ export default function BuyerDashboard() {
           ))}
         </nav>
         <div className={styles.sidebarBottom}>
-          {/* <button
-            className={styles.sidebarBtn}
-            onClick={() => {
-              setSection("settings");
-              setSidebar(false);
-            }}
-          >
-            <RiSettings4Line size={15} /> Settings
-          </button> */}
           <button
             className={`${styles.sidebarBtn} ${styles.sidebarBtnDanger}`}
             onClick={handleLogout}
@@ -709,7 +742,7 @@ export default function BuyerDashboard() {
           <div className={styles.topbarRight}>
             <button
               className={styles.topbarIconBtn}
-              onClick={() => setSection("notifications")}
+              onClick={() => handleSetSection("notifications")}
             >
               <RiBellLine size={15} />
               {unread > 0 && <div className={styles.notifBadge} />}
@@ -723,7 +756,12 @@ export default function BuyerDashboard() {
         <div
           ref={contentRef}
           className={styles.content}
-          style={{ overflowY: "auto", maxHeight: "calc(100vh - 120px)", paddingBottom: "80"}}
+          style={{ 
+            overflowY: "auto", 
+            height: "calc(100vh - 140px)",
+            paddingBottom: isMobile ? "140px" : "120px",
+            position: "relative"
+          }}
         >
           {section === "marketplace" && (
             <>
@@ -749,7 +787,7 @@ export default function BuyerDashboard() {
                 </div>
               )}
 
-              {/* ── Fix 2: Show AI Recommendations pill ────────────────────────── */}
+              {/* ── Show AI Recommendations pill ────────────────── */}
               {!showAIRecommendations && aiListings.length > 0 && (
                 <button
                   onClick={() => setShowAIRecommendations(true)}
@@ -870,7 +908,7 @@ export default function BuyerDashboard() {
           )}
 
           {section === "cart" && (
-            <SectionCart onOrderPlaced={() => setSection("orders")} />
+            <SectionCart onOrderPlaced={() => handleSetSection("orders")} />
           )}
 
           {section === "saved" && (
@@ -906,23 +944,19 @@ export default function BuyerDashboard() {
                   addToast("Profile updated successfully!", "success");
                 }}
               />
-              {/* ── Notification Toggle ────────────────────────────────────── */}
-              {/* <div style={{ padding: '0 20px 20px' }}>
-                <NotificationToggle />
-              </div> */}
             </>
           )}
 
-          {/* ── Fix 1: Scroll to top button ─────────────── */}
+          {/* ── FIXED: Scroll to top button ─────────────── */}
           {showScrollTop && (
             <button
               onClick={scrollToTop}
               style={{
                 position: "fixed",
-                bottom: 90,
-                right: 16,
-                width: 40,
-                height: 40,
+                bottom: 100,
+                right: 20,
+                width: 48,
+                height: 48,
                 borderRadius: "50%",
                 background: "#2d6a35",
                 color: "#fff",
@@ -931,16 +965,18 @@ export default function BuyerDashboard() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
-                zIndex: 100,
-                fontSize: 18,
-                transition: "all 0.2s ease",
+                boxShadow: "0 4px 16px rgba(45, 106, 53, 0.4)",
+                zIndex: 9999,
+                fontSize: 22,
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = "scale(1.1)";
+                e.currentTarget.style.boxShadow = "0 6px 24px rgba(45, 106, 53, 0.5)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "scale(1)";
+                e.currentTarget.style.boxShadow = "0 4px 16px rgba(45, 106, 53, 0.4)";
               }}
               aria-label="Scroll to top"
             >
@@ -955,7 +991,7 @@ export default function BuyerDashboard() {
               <button
                 key={item.id}
                 className={`${styles.bottomNavItem} ${section === item.id ? styles.bottomNavItemActive : ""}`}
-                onClick={() => setSection(item.id as Section)}
+                onClick={() => handleSetSection(item.id as Section)}
               >
                 <div className={styles.bottomNavIcon}>
                   {item.icon}

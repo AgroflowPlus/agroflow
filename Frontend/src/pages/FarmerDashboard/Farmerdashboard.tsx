@@ -26,7 +26,7 @@ import type { VoiceRecorderHandle } from "../../components/VoiceRecorder/VoiceRe
 import { VoiceWave } from "../../components/VoiceWave/VoiceWave";
 import { useTTS } from "../../hooks/useTTS";
 
-// ── NEW: Onboarding ──────────────────────────────────────────────────────────
+// ──Onboarding ────────────────────────────────
 import {
   FarmerOnboarding,
   shouldShowOnboarding,

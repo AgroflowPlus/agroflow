@@ -265,25 +265,42 @@ router.post('/', protect, async (req: AuthRequest, res: Response) => {
       break
     }
 
-    // ── NOTIFY INTERESTED BUYERS ──────────────────────────────────────────
+    // ── NOTIFY INTERESTED BUYERS (ENHANCED) ──────────────────────────────────────────
     try {
-      // Get buyers who have pending demands for this crop type
+      // Get buyers with matching demands
       const interestedBuyers = await prisma.buyer.findMany({
         where: {
-          demands: { 
+          demands: {
             some: { 
-              cropType: listing.cropType, 
+              cropType: listing.cropType as any, 
               status: 'pending' 
-            } 
+            }
           }
         },
         include: { user: true }
       })
 
       const buyerUserIds = interestedBuyers.map(b => b.userId)
-      if (buyerUserIds.length > 0) {
-        console.log(`🔔 Notifying ${buyerUserIds.length} buyers about new ${listing.cropType} listing`)
-        await notifyNewListing(buyerUserIds, listing.cropType, listing.location)
+
+      // Also notify all buyers who have push subscriptions
+      const allBuyerSubs = await prisma.pushSubscription.findMany({
+        include: { 
+          user: { 
+            include: { buyer: true } 
+          } 
+        }
+      })
+      
+      const allBuyerUserIds = allBuyerSubs
+        .filter(s => s.user.buyer)
+        .map(s => s.userId)
+
+      // Combine and deduplicate
+      const uniqueIds = [...new Set([...buyerUserIds, ...allBuyerUserIds])]
+
+      if (uniqueIds.length > 0) {
+        console.log(`🔔 Notifying ${uniqueIds.length} buyers about new ${listing.cropType} listing`)
+        await notifyNewListing(uniqueIds, listing.cropType, listing.location)
       }
     } catch (notifyError) {
       // Don't fail the request if notification fails
@@ -931,7 +948,7 @@ router.get('/ai-recommendations', protect, async (req: AuthRequest, res: Respons
       }
     });
   } catch (error) {
-    console.error('AI recommendations error:', error);
+    console.error('AI recommendations error:', error)
     res.status(500).json({ error: 'Failed to get recommendations' });
   }
 });

@@ -27,6 +27,7 @@ import { authService } from "../../services/authService";
 import { useToast } from "../../context/ToastContext";
 import { ConfirmModal } from "../../components/ConfirmModal/ConfirmModal";
 import { LoadingButton } from "../../components/LoadingButton/LoadingButton";
+import PageLoader from "../../components/PageLoader/PageLoader";
 import { SectionDashboard } from "../BuyerSellerDashboard/sections/SectionDashboard";
 import { SectionMyStore } from "../BuyerSellerDashboard/sections/SectionMyStore";
 import { SectionMatches } from "../BuyerSellerDashboard/sections/SectionMatches";
@@ -47,6 +48,8 @@ type Section =
   | "notifications"
   | "settings"
   | "orders";
+
+const SECTION_STORAGE_KEY = "seller_section";
 
 export default function SellerDashboard() {
   const navigate = useNavigate();
@@ -69,8 +72,24 @@ export default function SellerDashboard() {
       .map((n: string) => n[0])
       .join("")
       .toUpperCase() ?? "SE";
-  const [section, setSection] = useState<Section>("dashboard");
+  
+  // ── Save section to sessionStorage and restore on mount ──────────────
+  const [section, setSection] = useState<Section>(() => {
+    const saved = sessionStorage.getItem(SECTION_STORAGE_KEY);
+    if (saved && ["dashboard", "myStore", "sell", "requests", "matches", "notifications", "settings", "orders"].includes(saved)) {
+      return saved as Section;
+    }
+    return "dashboard";
+  });
+
+  // ── Wrapped setSection that persists to sessionStorage ──────────────
+  const handleSetSection = (s: Section) => {
+    sessionStorage.setItem(SECTION_STORAGE_KEY, s);
+    setSection(s);
+  };
+
   const [sidebarOpen, setSidebar] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [matches, setMatches] = useState<Match[]>([]);
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [myListings, setMyListings] = useState<Listing[]>([]);
@@ -96,10 +115,29 @@ export default function SellerDashboard() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  useEffect(() => {
-    refresh();
-  }, []);
+  // ── INITIAL LOAD ──────────────────────────────────────────────
+  async function initialLoad() {
+    setLoading(true);
+    try {
+      const [matchesData, myListingsData, ordersData] = await Promise.all([
+        marketService.getMatches(),
+        marketService.getListingsBySeller(),
+        marketService.getOrders(),
+      ]);
+      setMatches(matchesData);
+      setMyListings(myListingsData);
+      setOrders(ordersData);
+      setNotifs(marketService.getNotifications(user.id));
+      setMyRequests([]);
+    } catch (err) {
+      console.error("Initial load error:", err);
+      addToast("Failed to load data", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
 
+  // ── SILENT BACKGROUND REFRESH ────────────────────────────────
   async function refresh() {
     try {
       const [matchesData, myListingsData, ordersData] = await Promise.all([
@@ -117,6 +155,17 @@ export default function SellerDashboard() {
       addToast("Failed to refresh data", "error");
     }
   }
+
+  // ── Initial load + polling ──────────────────────────────────────
+  useEffect(() => {
+    initialLoad();
+
+    const interval = setInterval(() => {
+      refresh(); // silent — no loader
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const unread = notifs.filter((n) => !n.read).length;
 
@@ -218,6 +267,8 @@ export default function SellerDashboard() {
     },
   ];
 
+  if (loading) return <PageLoader />;
+
   return (
     <>
       <div className={styles.shell}>
@@ -296,7 +347,7 @@ export default function SellerDashboard() {
                 key={item.id}
                 className={`${styles.navItem} ${section === item.id ? styles.navItemActive : ""}`}
                 onClick={() => {
-                  setSection(item.id);
+                  handleSetSection(item.id);
                   setSidebar(false);
                 }}
               >
@@ -354,7 +405,7 @@ export default function SellerDashboard() {
             <div className={styles.topbarRight}>
               <button
                 className={styles.topbarIconBtn}
-                onClick={() => setSection("notifications")}
+                onClick={() => handleSetSection("notifications")}
               >
                 <RiBellLine size={15} />
                 {unread > 0 && <div className={styles.notifBadge} />}
@@ -382,7 +433,7 @@ export default function SellerDashboard() {
                 user={user}
                 onSuccess={() => {
                   refresh();
-                  setSection("myStore");
+                  handleSetSection("myStore");
                   addToast("Listing posted successfully!", "success");
                 }}
               />
@@ -428,7 +479,7 @@ export default function SellerDashboard() {
                 <button
                   key={item.id}
                   className={`${styles.bottomNavItem} ${section === item.id ? styles.bottomNavItemActive : ""}`}
-                  onClick={() => setSection(item.id as Section)}
+                  onClick={() => handleSetSection(item.id as Section)}
                 >
                   <div className={styles.bottomNavIcon}>
                     {item.icon}

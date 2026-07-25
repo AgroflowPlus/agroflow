@@ -84,7 +84,7 @@ export interface Match {
   matchReasons?:  string[]     
   aiConfidence?:  number       
   isAIGenerated?: boolean      
-  order?:         Order        // Add order to Match
+  order?:         Order
 }
 
 export interface Order {
@@ -135,6 +135,27 @@ function authHeaders() {
   }
 }
 
+// ── FETCH WITH TIMEOUT ──────────────────────────────────────────────
+async function fetchWithTimeout(
+  url: string, 
+  options: RequestInit = {}, // Added default empty object
+  timeout = 10000
+): Promise<Response> {
+  const controller = new AbortController()
+  const id = setTimeout(() => controller.abort(), timeout)
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal })
+    clearTimeout(id)
+    return res
+  } catch (err: any) {
+    clearTimeout(id)
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out. Please try again.')
+    }
+    throw err
+  }
+}
+
 // ── In-memory notification store (frontend only) ──────────────
 let _notifications: Notification[] = []
 
@@ -148,7 +169,7 @@ export const marketService = {
       const params = new URLSearchParams()
       if (userLocation) params.set('userLocation', userLocation)
 
-      const res  = await fetch(`${BASE_URL}/listings?${params}`, {
+      const res = await fetchWithTimeout(`${BASE_URL}/listings?${params}`, {
         headers: authHeaders(),
       })
       const data = await res.json()
@@ -160,7 +181,9 @@ export const marketService = {
 
   async getListingsBySeller(): Promise<Listing[]> {
     try {
-      const res  = await fetch(`${BASE_URL}/listings/my/listings`, { headers: authHeaders() })
+      const res = await fetchWithTimeout(`${BASE_URL}/listings/my/listings`, { 
+        headers: authHeaders() 
+      })
       const data = await res.json()
       return data.listings || []
     } catch {
@@ -176,7 +199,7 @@ export const marketService = {
     photoUrl?:   string
   }): Promise<{ success: boolean; listing?: any; error?: string }> {
     try {
-      const res  = await fetch(`${BASE_URL}/listings`, {
+      const res = await fetchWithTimeout(`${BASE_URL}/listings`, {
         method:  'POST',
         headers: authHeaders(),
         body:    JSON.stringify(data),
@@ -195,7 +218,7 @@ export const marketService = {
       const token = getToken();
       if (!token) throw new Error('Not authenticated');
 
-      const res = await fetch(`${BASE_URL}/listings/${listingId}`, {
+      const res = await fetchWithTimeout(`${BASE_URL}/listings/${listingId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -216,7 +239,7 @@ export const marketService = {
   // ── AI RECOMMENDATIONS ──────────────────────────────────────
   async getAIRecommendations(): Promise<AIRecommendation[]> {
     try {
-      const res = await fetch(`${BASE_URL}/listings/ai-recommendations`, {
+      const res = await fetchWithTimeout(`${BASE_URL}/listings/ai-recommendations`, {
         headers: authHeaders(),
       });
       const data = await res.json();
@@ -234,7 +257,7 @@ export const marketService = {
     location: string
   }): Promise<{ matched: boolean; match?: Match; demand?: Demand }> {
     try {
-      const res  = await fetch(`${BASE_URL}/listings/demand`, {
+      const res = await fetchWithTimeout(`${BASE_URL}/listings/demand`, {
         method:  'POST',
         headers: authHeaders(),
         body:    JSON.stringify(data),
@@ -248,7 +271,9 @@ export const marketService = {
 
   async getWaitlist(): Promise<Demand[]> {
     try {
-      const res  = await fetch(`${BASE_URL}/listings/my/waitlist`, { headers: authHeaders() })
+      const res = await fetchWithTimeout(`${BASE_URL}/listings/my/waitlist`, { 
+        headers: authHeaders() 
+      })
       const data = await res.json()
       return data.demands || []
     } catch {
@@ -264,7 +289,7 @@ export const marketService = {
     buyerLocation:string
   ): Promise<{ success: boolean; request?: any; error?: string }> {
     try {
-      const res  = await fetch(`${BASE_URL}/listings/${listingId}/request`, {
+      const res = await fetchWithTimeout(`${BASE_URL}/listings/${listingId}/request`, {
         method:  'POST',
         headers: authHeaders(),
         body:    JSON.stringify({ quantity, message, buyerLocation }),
@@ -282,7 +307,7 @@ export const marketService = {
     buyerLocation:string = 'Ijapo Estate'
   ): Promise<{ success: boolean; match?: Match; error?: string }> {
     try {
-      const res  = await fetch(`${BASE_URL}/listings/requests/${requestId}/accept`, {
+      const res = await fetchWithTimeout(`${BASE_URL}/listings/requests/${requestId}/accept`, {
         method:  'PATCH',
         headers: authHeaders(),
         body:    JSON.stringify({ buyerLocation }),
@@ -297,7 +322,7 @@ export const marketService = {
 
   async rejectRequest(requestId: string): Promise<void> {
     try {
-      await fetch(`${BASE_URL}/listings/requests/${requestId}/decline`, {
+      await fetchWithTimeout(`${BASE_URL}/listings/requests/${requestId}/decline`, {
         method:  'PATCH',
         headers: authHeaders(),
       })
@@ -307,7 +332,9 @@ export const marketService = {
   // ── MATCHES (WITH AI SCORES) ──────────────────────────────
   async getMatches(): Promise<Match[]> {
     try {
-      const res  = await fetch(`${BASE_URL}/listings/my/matches`, { headers: authHeaders() })
+      const res = await fetchWithTimeout(`${BASE_URL}/listings/my/matches`, { 
+        headers: authHeaders() 
+      })
       const data = await res.json()
       // Normalize backend match shape to frontend Match interface with AI fields
       return (data.matches || []).map((m: any) => ({
@@ -342,14 +369,15 @@ export const marketService = {
   // ── GET MATCHES WITH AI SCORES (sorted) ─────────────────────
   async getMatchesWithAIScores(): Promise<Match[]> {
     const matches = await this.getMatches();
-    // Sort by AI score descending (higher score first)
     return matches.sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0));
   },
 
   // ── ORDERS ──────────────────────────────────────────────────
   async getOrders(): Promise<Order[]> {
     try {
-      const res  = await fetch(`${BASE_URL}/orders`, { headers: authHeaders() })
+      const res = await fetchWithTimeout(`${BASE_URL}/orders`, { 
+        headers: authHeaders() 
+      })
       const data = await res.json()
       return data.orders || []
     } catch {
@@ -359,7 +387,7 @@ export const marketService = {
 
   async updateOrderStatus(orderId: string, status: string, note?: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const res  = await fetch(`${BASE_URL}/orders/${orderId}/status`, {
+      const res = await fetchWithTimeout(`${BASE_URL}/orders/${orderId}/status`, {
         method:  'PATCH',
         headers: authHeaders(),
         body:    JSON.stringify({ status, note })
@@ -375,7 +403,7 @@ export const marketService = {
   // ── REVIEWS ──────────────────────────────────────────────────
   async submitReview(orderId: string, rating: number, comment?: string) {
     try {
-      const res = await fetch(`${BASE_URL}/reviews`, {
+      const res = await fetchWithTimeout(`${BASE_URL}/reviews`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ orderId, rating, comment })
@@ -389,7 +417,7 @@ export const marketService = {
 
   async getSellerReviews(sellerId: string) {
     try {
-      const res  = await fetch(`${BASE_URL}/reviews/seller/${sellerId}`)
+      const res = await fetchWithTimeout(`${BASE_URL}/reviews/seller/${sellerId}`)
       const data = await res.json()
       return data
     } catch { 
@@ -423,7 +451,6 @@ export const marketService = {
   },
 
   // Legacy sync methods — kept so existing UI code doesn't break
-  // These now just return empty arrays; UI should use async methods above
   getListingsSync():               Listing[]      { return [] },
   getMatchesByUser(_id: string):   Match[]        { return [] },
   getWaitlistByUser(_id: string):  Demand[]       { return [] },
