@@ -1,13 +1,12 @@
 import { useState } from "react";
-import { RiArrowLeftLine, RiStore3Line } from "react-icons/ri";
+import { RiMore2Fill } from "react-icons/ri";
 import { MdDeleteOutline } from "react-icons/md";
+import { ListingCard } from "../components/ListingCard";
+import { SectionRequests } from "./SectionRequests";
 import { ConfirmModal } from "../../../components/ConfirmModal/ConfirmModal";
 import { useToast } from "../../../context/ToastContext";
-import { marketService } from "../../../services/marketService";
-import { SectionRequests } from "./SectionRequests";
-import { CROP_ICON, CROP_CSS } from "../constants";
+import { marketService, type Listing, type Request } from "../../../services/marketService";
 import styles from "../BuyerSellerDashboard.module.css";
-import type { Listing, Request } from "../../../services/marketService";
 
 interface SectionMyStoreProps {
   listings: Listing[];
@@ -15,137 +14,132 @@ interface SectionMyStoreProps {
 }
 
 export function SectionMyStore({ listings, onRefresh }: SectionMyStoreProps) {
-  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{
-    show: boolean;
-    listingId: string | null;
-  }>({ show: false, listingId: null });
   const { addToast } = useToast();
+  const [showRequests, setShowRequests] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDeleteClick = (listingId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setDeleteConfirm({ show: true, listingId });
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteConfirm.listingId) return;
-
-    const result = await marketService.deleteListing(deleteConfirm.listingId);
-
-    if (result.success) {
-      addToast("Listing deleted successfully!", "success");
-      onRefresh();
-      if (selectedListing?.id === deleteConfirm.listingId) {
-        setSelectedListing(null);
+  const handleDelete = async (listingId: string) => {
+    setIsDeleting(true);
+    try {
+      const result = await marketService.deleteListing(listingId);
+      if (result.success) {
+        addToast("Listing deleted successfully", "success");
+        onRefresh();
+      } else {
+        addToast(result.error || "Failed to delete listing", "error");
       }
-    } else {
-      addToast(result.error || "Failed to delete listing", "error");
+    } catch (error) {
+      addToast("An error occurred while deleting", "error");
+    } finally {
+      setIsDeleting(false);
+      setDeleteTarget(null);
     }
-    setDeleteConfirm({ show: false, listingId: null });
   };
 
-  if (selectedListing) {
-    return (
-      <>
-        <button className={styles.backBtn} onClick={() => setSelectedListing(null)}>
-          <RiArrowLeftLine size={16} /> Back to My Listings
-        </button>
-        <SectionRequests
-          requests={selectedListing.requests || []}
-          onAccept={(r: Request) => {
-            marketService.acceptRequest(r.id);
-            onRefresh();
-          }}
-          onReject={(r: Request) => {
-            marketService.rejectRequest(r.id);
-            onRefresh();
-          }}
-        />
-      </>
-    );
-  }
+  // ── FIX: Make these async functions that return Promise ──────────
+  const handleAcceptRequest = async (request: Request) => {
+    try {
+      const result = await marketService.acceptRequest(request.id);
+      if (result.success) {
+        addToast("Request accepted successfully!", "success");
+        onRefresh();
+      } else {
+        addToast(result.error || "Failed to accept request", "error");
+      }
+    } catch (error) {
+      addToast("An error occurred while accepting the request", "error");
+    }
+  };
 
-  if (listings.length === 0) {
-    return (
-      <div className={styles.emptyState}>
-        <div className={styles.emptyIcon}>
-          <RiStore3Line size={48} />
-        </div>
-        <div className={styles.emptyTitle}>No listings yet</div>
-        <div className={styles.emptyText}>
-          Start selling by listing your produce.
-        </div>
-      </div>
-    );
-  }
+  const handleRejectRequest = async (request: Request) => {
+    try {
+      await marketService.rejectRequest(request.id);
+      addToast("Request declined", "info");
+      onRefresh();
+    } catch (error) {
+      addToast("Failed to decline request", "error");
+    }
+  };
+
+  // Extract all requests from listings
+  const allRequests = listings.flatMap((l) => l.requests || []);
 
   return (
-    <>
-      <ConfirmModal
-        isOpen={deleteConfirm.show}
-        title="Delete Listing"
-        message="⚠️ WARNING: This action cannot be undone. Are you sure you want to permanently delete this listing?"
-        onConfirm={confirmDelete}
-        onCancel={() => setDeleteConfirm({ show: false, listingId: null })}
-      />
-
-      <div className={styles.pageHeader}>
-        <div className={styles.pageTitle}>My Store</div>
-        <div className={styles.pageSubtitle}>
-          {listings.length} active listings · Manage your produce
+    <div className={styles.myStoreContainer}>
+      {/* Header */}
+      <div className={styles.myStoreHeader}>
+        <div>
+          <h2 className={styles.myStoreTitle}>My Store</h2>
+          <p className={styles.myStoreSubtitle}>
+            {listings.length} active listing{listings.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <div className={styles.myStoreActions}>
+          {allRequests.length > 0 && (
+            <button
+              className={`${styles.requestToggleBtn} ${showRequests ? styles.requestToggleBtnActive : ""}`}
+              onClick={() => setShowRequests(!showRequests)}
+            >
+              <RiMore2Fill size={16} />
+              {showRequests ? "Hide Requests" : `Requests (${allRequests.length})`}
+            </button>
+          )}
         </div>
       </div>
 
-      <div className={styles.marketplaceGrid}>
-        {listings.map((listing) => (
-          <div key={listing.id} className={styles.marketplaceCard}>
-            <div className={styles.cardPhoto}>
-              {listing.photoUrl ? (
-                <img src={listing.photoUrl} alt={listing.cropType} />
-              ) : (
-                <div className={styles.photoPlaceholder}>
-                  <span className={styles.photoEmoji}>
-                    {CROP_ICON[listing.cropType]}
-                  </span>
-                </div>
-              )}
-              <div className={`${styles.cardBadge} ${styles[CROP_CSS[listing.cropType]]}`}>
-                {CROP_ICON[listing.cropType]} {listing.cropType}
-              </div>
+      {/* Requests Section */}
+      {showRequests && (
+        <div className={styles.requestsSection}>
+          <SectionRequests
+            requests={allRequests}
+            onAccept={handleAcceptRequest}
+            onReject={handleRejectRequest}
+          />
+        </div>
+      )}
+
+      {/* Listings Grid */}
+      {listings.length === 0 ? (
+        <div className={styles.emptyState}>
+          <div className={styles.emptyIcon}>🌾</div>
+          <div className={styles.emptyTitle}>No listings yet</div>
+          <div className={styles.emptyText}>
+            Start selling by posting your first produce listing.
+          </div>
+        </div>
+      ) : (
+        <div className={styles.marketplaceGrid}>
+          {listings.map((listing) => (
+            <div key={listing.id} className={styles.listingCardWrapper}>
+              <ListingCard
+                listing={listing}
+                intent="sell"
+                onRequestToBuy={() => {}}
+              />
               <button
                 className={styles.deleteListingBtn}
-                onClick={(e) => handleDeleteClick(listing.id, e)}
-                title="Delete listing"
+                onClick={() => setDeleteTarget(listing.id)}
+                disabled={isDeleting}
+                aria-label="Delete listing"
               >
-                <MdDeleteOutline size={18} />
+                <MdDeleteOutline size={16} />
               </button>
             </div>
-            <div className={styles.cardInfo}>
-              <div className={styles.produceStats}>
-                <div className={styles.statItem}>
-                  <span className={styles.statValue}>
-                    {listing.remainingQty}/{listing.quantity}kg
-                  </span>
-                  <span className={styles.statLabel}>Remaining</span>
-                </div>
-                <div className={styles.statDivider}>|</div>
-                <div className={styles.statItem}>
-                  <span className={styles.statValue}>
-                    {listing.requests?.filter((r) => r.status === "pending").length || 0}
-                  </span>
-                  <span className={styles.statLabel}>Pending</span>
-                </div>
-              </div>
-              <button
-                className={styles.viewRequestsBtn}
-                onClick={() => setSelectedListing(listing)}
-              >
-                View Requests →
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </>
+          ))}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        title="Delete Listing"
+        message="Are you sure you want to delete this listing? This action cannot be undone."
+        onConfirm={() => {
+          if (deleteTarget) handleDelete(deleteTarget);
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </div>
   );
 }
