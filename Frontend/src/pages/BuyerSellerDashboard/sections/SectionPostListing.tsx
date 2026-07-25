@@ -30,6 +30,18 @@ export function SectionPostListing({ onSuccess }: SectionPostListingProps) {
 
   const setF = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
+  const resetForm = () => {
+    setForm({
+      cropType: "Maize" as CropType,
+      quantity: "",
+      location: AKURE_AREAS[0],
+      description: "",
+      photoUrl: "",
+    });
+    setImagePreview("");
+    setErrors({});
+  };
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -79,8 +91,12 @@ export function SectionPostListing({ onSuccess }: SectionPostListingProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    
     setLoading(true);
-
+    
+    // ── Optimistic — show immediate feedback ──────────────────────────
+    addToast('Posting your listing...', 'info');
+    
     try {
       const result = await marketService.postListing({
         cropType: form.cropType,
@@ -92,11 +108,17 @@ export function SectionPostListing({ onSuccess }: SectionPostListingProps) {
 
       if (!result.success) {
         addToast(result.error || "Failed to post listing", "error");
+        setLoading(false);
         return;
       }
+      
+      // ── Success — clear form and notify ─────────────────────────────
+      addToast('✅ Listing posted successfully!', 'success');
+      resetForm();
       onSuccess();
     } catch (error) {
-      addToast("An error occurred while posting", "error");
+      addToast('Failed to post. Please try again.', 'error');
+      console.error('Post listing error:', error);
     } finally {
       setLoading(false);
     }

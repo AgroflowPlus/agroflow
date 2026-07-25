@@ -242,26 +242,12 @@ export function ListingCard({
         </div>
 
         {/* Quantity — prominent */}
-        <div
-          style={{
-            fontSize: 17,
-            fontWeight: 800,
-            color: "#2d6a35",
-            letterSpacing: "-0.02em",
-          }}
-        >
-          {listing.remainingQty}kg
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              color: "#9ead9f",
-              marginLeft: 4,
-            }}
-          >
-            available
-          </span>
-        </div>
+        <div style={{ fontSize: 17, fontWeight: 800, color: '#2d6a35' }}>
+  {listing.remainingQty}kg
+  <span style={{ fontSize: 10, color: '#9ead9f', marginLeft: 4 }}>
+    / {listing.quantity}kg
+  </span>
+</div>
 
         {/* Description — 1 line only */}
         {listing.description && (

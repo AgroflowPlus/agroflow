@@ -564,14 +564,22 @@ router.patch('/requests/:requestId/accept', protect, async (req: AuthRequest, re
       data:  { status: 'accepted' },
     })
 
-    const newQty = request.listing.remainingQty - request.requestedQty
-    await prisma.listing.update({
-      where: { id: request.listingId },
-      data: {
-        remainingQty: newQty,
-        status:       newQty === 0 ? 'sold' : 'partial',
-      },
+    // ── UPDATE LISTING QUANTITY IMMEDIATELY ────────────────────────────
+    const listing = await prisma.listing.findUnique({ 
+      where: { id: request.listingId } 
     })
+    
+    if (listing) {
+      const newQty = Math.max(0, listing.remainingQty - request.requestedQty)
+      await prisma.listing.update({
+        where: { id: request.listingId },
+        data: {
+          remainingQty: newQty,
+          status: newQty === 0 ? 'sold' : 'partial'
+        }
+      })
+      console.log(`📦 Listing ${request.listingId} updated: remainingQty ${listing.remainingQty} → ${newQty}, status: ${newQty === 0 ? 'sold' : 'partial'}`)
+    }
 
     const distance = haversineDistance(
       buyerLocation || request.buyerLocation || 'Ijapo Estate',
@@ -927,7 +935,7 @@ router.get('/ai-recommendations', protect, async (req: AuthRequest, res: Respons
         distance: Math.round(distance * 10) / 10,
         score: Math.min(Math.round(score), 100),
         reasons: reasons.slice(0, 3),
-        photoUrl: listing.photoUrl, // ← ADDED: Include photoUrl in recommendations
+        photoUrl: listing.photoUrl,
       };
     });
     

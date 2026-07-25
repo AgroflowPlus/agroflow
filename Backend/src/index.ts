@@ -104,4 +104,37 @@ process.on("unhandledRejection", (reason) => {
 
 process.stdin.resume(); // Keep process alive
 
+// ── KEEP RENDER ALIVE ──────────────────────────────────────────────
+// Render free tier spins down after 15 minutes of inactivity.
+// This self-ping keeps the service awake by hitting the /health endpoint every 14 minutes.
+if (process.env.NODE_ENV === 'production') {
+  console.log('🏓 Production mode detected — starting self-ping service');
+  
+  // Initial ping after 30 seconds to ensure server is fully started
+  setTimeout(async () => {
+    try {
+      const baseUrl = process.env.RENDER_EXTERNAL_URL || 'https://ai-farmer-platform-backend-code.onrender.com';
+      await fetch(`${baseUrl}/health`);
+      console.log('🏓 Initial self-ping sent successfully');
+    } catch (err) {
+      console.error('❌ Initial self-ping failed:', err);
+    }
+  }, 30000); // 30 seconds
+
+  // Set up recurring ping every 14 minutes
+  setInterval(async () => {
+    try {
+      const baseUrl = process.env.RENDER_EXTERNAL_URL || 'https://ai-farmer-platform-backend-code.onrender.com';
+      const response = await fetch(`${baseUrl}/health`);
+      if (response.ok) {
+        console.log(`🏓 Self-ping sent at ${new Date().toISOString()} - Status: ${response.status}`);
+      } else {
+        console.warn(`⚠️ Self-ping returned status: ${response.status}`);
+      }
+    } catch (err) {
+      console.error('❌ Self-ping failed:', err);
+    }
+  }, 14 * 60 * 1000); // 14 minutes
+}
+
 export default app;

@@ -135,22 +135,19 @@ function authHeaders() {
   }
 }
 
-// ── FETCH WITH TIMEOUT ──────────────────────────────────────────────
-async function fetchWithTimeout(
-  url: string, 
-  options: RequestInit = {}, // Added default empty object
-  timeout = 10000
-): Promise<Response> {
+// ── API FETCH WITH TIMEOUT ──────────────────────────────────────────
+async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const controller = new AbortController()
-  const id = setTimeout(() => controller.abort(), timeout)
+  const timeout = setTimeout(() => controller.abort(), 15000) // 15 second max
+  
   try {
     const res = await fetch(url, { ...options, signal: controller.signal })
-    clearTimeout(id)
+    clearTimeout(timeout)
     return res
   } catch (err: any) {
-    clearTimeout(id)
+    clearTimeout(timeout)
     if (err.name === 'AbortError') {
-      throw new Error('Request timed out. Please try again.')
+      throw new Error('Server is waking up. Please try again in a moment.')
     }
     throw err
   }
@@ -169,7 +166,7 @@ export const marketService = {
       const params = new URLSearchParams()
       if (userLocation) params.set('userLocation', userLocation)
 
-      const res = await fetchWithTimeout(`${BASE_URL}/listings?${params}`, {
+      const res = await apiFetch(`${BASE_URL}/listings?${params}`, {
         headers: authHeaders(),
       })
       const data = await res.json()
@@ -181,7 +178,7 @@ export const marketService = {
 
   async getListingsBySeller(): Promise<Listing[]> {
     try {
-      const res = await fetchWithTimeout(`${BASE_URL}/listings/my/listings`, { 
+      const res = await apiFetch(`${BASE_URL}/listings/my/listings`, { 
         headers: authHeaders() 
       })
       const data = await res.json()
@@ -199,7 +196,7 @@ export const marketService = {
     photoUrl?:   string
   }): Promise<{ success: boolean; listing?: any; error?: string }> {
     try {
-      const res = await fetchWithTimeout(`${BASE_URL}/listings`, {
+      const res = await apiFetch(`${BASE_URL}/listings`, {
         method:  'POST',
         headers: authHeaders(),
         body:    JSON.stringify(data),
@@ -218,7 +215,7 @@ export const marketService = {
       const token = getToken();
       if (!token) throw new Error('Not authenticated');
 
-      const res = await fetchWithTimeout(`${BASE_URL}/listings/${listingId}`, {
+      const res = await apiFetch(`${BASE_URL}/listings/${listingId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -239,7 +236,7 @@ export const marketService = {
   // ── AI RECOMMENDATIONS ──────────────────────────────────────
   async getAIRecommendations(): Promise<AIRecommendation[]> {
     try {
-      const res = await fetchWithTimeout(`${BASE_URL}/listings/ai-recommendations`, {
+      const res = await apiFetch(`${BASE_URL}/listings/ai-recommendations`, {
         headers: authHeaders(),
       });
       const data = await res.json();
@@ -257,7 +254,7 @@ export const marketService = {
     location: string
   }): Promise<{ matched: boolean; match?: Match; demand?: Demand }> {
     try {
-      const res = await fetchWithTimeout(`${BASE_URL}/listings/demand`, {
+      const res = await apiFetch(`${BASE_URL}/listings/demand`, {
         method:  'POST',
         headers: authHeaders(),
         body:    JSON.stringify(data),
@@ -271,7 +268,7 @@ export const marketService = {
 
   async getWaitlist(): Promise<Demand[]> {
     try {
-      const res = await fetchWithTimeout(`${BASE_URL}/listings/my/waitlist`, { 
+      const res = await apiFetch(`${BASE_URL}/listings/my/waitlist`, { 
         headers: authHeaders() 
       })
       const data = await res.json()
@@ -289,7 +286,7 @@ export const marketService = {
     buyerLocation:string
   ): Promise<{ success: boolean; request?: any; error?: string }> {
     try {
-      const res = await fetchWithTimeout(`${BASE_URL}/listings/${listingId}/request`, {
+      const res = await apiFetch(`${BASE_URL}/listings/${listingId}/request`, {
         method:  'POST',
         headers: authHeaders(),
         body:    JSON.stringify({ quantity, message, buyerLocation }),
@@ -307,7 +304,7 @@ export const marketService = {
     buyerLocation:string = 'Ijapo Estate'
   ): Promise<{ success: boolean; match?: Match; error?: string }> {
     try {
-      const res = await fetchWithTimeout(`${BASE_URL}/listings/requests/${requestId}/accept`, {
+      const res = await apiFetch(`${BASE_URL}/listings/requests/${requestId}/accept`, {
         method:  'PATCH',
         headers: authHeaders(),
         body:    JSON.stringify({ buyerLocation }),
@@ -322,7 +319,7 @@ export const marketService = {
 
   async rejectRequest(requestId: string): Promise<void> {
     try {
-      await fetchWithTimeout(`${BASE_URL}/listings/requests/${requestId}/decline`, {
+      await apiFetch(`${BASE_URL}/listings/requests/${requestId}/decline`, {
         method:  'PATCH',
         headers: authHeaders(),
       })
@@ -332,7 +329,7 @@ export const marketService = {
   // ── MATCHES (WITH AI SCORES) ──────────────────────────────
   async getMatches(): Promise<Match[]> {
     try {
-      const res = await fetchWithTimeout(`${BASE_URL}/listings/my/matches`, { 
+      const res = await apiFetch(`${BASE_URL}/listings/my/matches`, { 
         headers: authHeaders() 
       })
       const data = await res.json()
@@ -375,7 +372,7 @@ export const marketService = {
   // ── ORDERS ──────────────────────────────────────────────────
   async getOrders(): Promise<Order[]> {
     try {
-      const res = await fetchWithTimeout(`${BASE_URL}/orders`, { 
+      const res = await apiFetch(`${BASE_URL}/orders`, { 
         headers: authHeaders() 
       })
       const data = await res.json()
@@ -387,7 +384,7 @@ export const marketService = {
 
   async updateOrderStatus(orderId: string, status: string, note?: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const res = await fetchWithTimeout(`${BASE_URL}/orders/${orderId}/status`, {
+      const res = await apiFetch(`${BASE_URL}/orders/${orderId}/status`, {
         method:  'PATCH',
         headers: authHeaders(),
         body:    JSON.stringify({ status, note })
@@ -403,7 +400,7 @@ export const marketService = {
   // ── REVIEWS ──────────────────────────────────────────────────
   async submitReview(orderId: string, rating: number, comment?: string) {
     try {
-      const res = await fetchWithTimeout(`${BASE_URL}/reviews`, {
+      const res = await apiFetch(`${BASE_URL}/reviews`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ orderId, rating, comment })
@@ -417,7 +414,7 @@ export const marketService = {
 
   async getSellerReviews(sellerId: string) {
     try {
-      const res = await fetchWithTimeout(`${BASE_URL}/reviews/seller/${sellerId}`)
+      const res = await apiFetch(`${BASE_URL}/reviews/seller/${sellerId}`)
       const data = await res.json()
       return data
     } catch { 
