@@ -13,6 +13,10 @@ import {
   RiShoppingBagLine,
   RiTimeLine,
   RiArrowRightLine,
+  RiStarLine,
+  RiStarFill,
+  RiBox3Line,
+  RiChat3Line,
 } from 'react-icons/ri';
 // import styles from '../BuyerSellerDashboard.module.css'
 
@@ -121,7 +125,9 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
   if (orders.length === 0) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: '#9ead9f' }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
+        <div style={{ fontSize: 48, marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
+          <RiBox3Line size={48} />
+        </div>
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>No orders yet</div>
         <div style={{ fontSize: 13 }}>Orders will appear here when buyers purchase your produce</div>
       </div>
@@ -282,7 +288,8 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
                       e.currentTarget.style.background = 'transparent';
                     }}
                   >
-                    ⭐ Leave a Review
+                    <RiStarLine size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                    Leave a Review
                   </button>
                 )}
               </div>
@@ -310,7 +317,8 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
             width: '100%',
             maxWidth: 400,
           }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <RiChat3Line size={20} />
               Rate your experience
             </h3>
 
@@ -327,6 +335,10 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
                     cursor: 'pointer',
                     opacity: star <= rating ? 1 : 0.3,
                     transition: 'transform 0.2s ease',
+                    color: '#f59e0b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = 'scale(1.2)';
@@ -335,7 +347,7 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
                     e.currentTarget.style.transform = 'scale(1)';
                   }}
                 >
-                  ⭐
+                  {star <= rating ? <RiStarFill size={32} /> : <RiStarLine size={32} />}
                 </button>
               ))}
             </div>

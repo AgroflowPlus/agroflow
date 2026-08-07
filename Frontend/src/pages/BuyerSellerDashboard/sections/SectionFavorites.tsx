@@ -1,6 +1,6 @@
 import { useFavoritesStore } from '../../../store/favoritesStore'
 import { ListingCard } from '../components/ListingCard'
-// import { RiHeartLine } from 'react-icons/ri'
+import { RiHeartLine } from 'react-icons/ri'
 import type { Listing } from '../../../services/marketService'
 
 interface Props {
@@ -16,7 +16,9 @@ export function SectionFavorites({ listings, onRequestToBuy, onListingClick }: P
   if (favorites.length === 0) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: '#9ead9f' }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>❤️</div>
+        <div style={{ fontSize: 48, marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
+          <RiHeartLine size={48} />
+        </div>
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>No favorites yet</div>
         <div style={{ fontSize: 13 }}>
           Tap the heart icon on any listing to save it here

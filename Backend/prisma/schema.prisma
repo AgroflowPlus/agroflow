@@ -83,15 +83,18 @@ model Buyer {
 }
 
 model Seller {
-  id        String    @id @default(cuid())
-  userId    String    @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  listings  Listing[]
-  matches   Match[]
-  orders    Order[]
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reviews   Review[]  // Reviews received by this seller
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  verificationStatus VerificationStatus @default(unverified)
+  selfieUrl          String?
+  verificationNote   String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listings           Listing[]
+  matches            Match[]
+  orders             Order[]
+  reviews            Review[]           // Reviews received by this seller
 }
 
 model Listing {
@@ -315,4 +318,11 @@ enum OrderStatus {
   delivered
   completed
   cancelled
+}
+
+enum VerificationStatus {
+  unverified
+  pending
+  verified
+  rejected
 }

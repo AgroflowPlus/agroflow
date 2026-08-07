@@ -1,6 +1,20 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { RiStore3Line, RiLeafFill, RiRobot2Fill, RiMicLine } from "react-icons/ri";
+import { 
+  RiStore3Line, 
+  RiLeafFill, 
+  RiRobot2Fill, 
+  RiMicLine,
+  RiSeedlingLine,
+  // RiCheckLine,
+  // RiEmotionHappyLine,
+  // RiSeedlingLine,
+  // RiSunLine,
+  // RiCloudLine,
+  // RiUserSmileLine,
+  // RiTimeLine,
+  // RiChatSmileLine
+} from "react-icons/ri";
 import { BsPerson, BsPencilSquare } from "react-icons/bs";
 import {
   MdOutlineLogout,
@@ -159,10 +173,9 @@ export default function FarmerChat() {
     loadSessions();
   }, []);
 
-  // ── Onboarding useEffect — only handles choice modal logic ────────────────
+  // ── Onboarding useEffect ────────────────────────────────────────────────────
   useEffect(() => {
     if (!showOnboarding) {
-      // Not showing onboarding — check if we need the choice modal
       const justLoggedIn = authService.consumeJustLoggedIn();
       if (justLoggedIn) setShowChoiceModal(true);
     }
@@ -282,7 +295,7 @@ export default function FarmerChat() {
     const userVoiceMsg: Message = {
       id: userMsgId,
       role: "user",
-      text: "🎤 Voice message",
+      text: "Voice message",
       time: nowTime(),
       isVoice: true,
       voiceLanguage: lang,
@@ -316,7 +329,7 @@ export default function FarmerChat() {
       await chatService.saveMessage(
         sessionId,
         "user",
-        originalText ?? "🎤 Voice message",
+        originalText ?? "Voice message",
         { isVoice: true, voiceText: originalText ?? "", language: lang }
       );
 
@@ -332,7 +345,7 @@ export default function FarmerChat() {
         const updated = [...messages, userVoiceMsg, aiMsg];
         if (idx !== -1) {
           const arr = [...prev];
-          arr[idx] = { ...arr[idx], messages: updated, preview: "🎤 Voice message", date: "Today" };
+          arr[idx] = { ...arr[idx], messages: updated, preview: "Voice message", date: "Today" };
           const [moved] = arr.splice(idx, 1);
           return [moved, ...arr];
         }
@@ -340,7 +353,7 @@ export default function FarmerChat() {
           {
             id: sessionId!,
             title: "Voice message",
-            preview: "🎤 Voice message",
+            preview: "Voice message",
             date: "Today",
             messages: updated,
           },
@@ -463,7 +476,7 @@ export default function FarmerChat() {
     addToast("Switched to Seller Mode", "success");
   };
 
-  // ── RENDER: Onboarding takes priority — shows immediately ────────────────
+  // ── RENDER: Onboarding takes priority ──────────────────────────────────────
   if (showOnboarding) {
     return <FarmerOnboarding onComplete={handleOnboardingComplete} />;
   }
@@ -481,7 +494,7 @@ export default function FarmerChat() {
                 <div className={styles.choiceModalIcon}>
                   <RiLeafFill size={36} color="#2d6a35" />
                 </div>
-                <h2 className={styles.choiceModalTitle}>Welcome back, {firstName}! 👨‍🌾</h2>
+                <h2 className={styles.choiceModalTitle}>Welcome back, {firstName}</h2>
                 <p className={styles.choiceModalSubtitle}>What would you like to do today?</p>
               </div>
               <div className={styles.choiceModalOptions}>
@@ -623,19 +636,8 @@ export default function FarmerChat() {
               <div className={styles.profileCard}>
                 <div className={styles.profileAvatar}>{initials}</div>
                 <div className={styles.profileName}>{user.name}</div>
-                <div className={styles.profileBadge}>🌾 Farmer</div>
-                <div className={styles.profileStats}>
-                  {[
-                    { val: "4", label: "Crops" },
-                    { val: "12", label: "Harvests" },
-                    { val: "8", label: "Deliveries" },
-                    { val: "98%", label: "On-Time" },
-                  ].map(({ val, label }) => (
-                    <div key={label} className={styles.profileStat}>
-                      <div className={styles.profileStatVal}>{val}</div>
-                      <div className={styles.profileStatLabel}>{label}</div>
-                    </div>
-                  ))}
+                <div className={styles.profileBadge}>
+                  <RiSeedlingLine size={12} /> Farmer
                 </div>
               </div>
               <div className={styles.profileForm}>
@@ -685,7 +687,7 @@ export default function FarmerChat() {
                     <div className={styles.emptyOrb}>
                       <RiRobot2Fill size={36} style={{ color: "#2d6a35" }} />
                     </div>
-                    <h2 className={styles.emptyTitle}>Good morning, {firstName} 👋</h2>
+                    <h2 className={styles.emptyTitle}>Good morning, {firstName}</h2>
                     <p className={styles.emptySubtitle}>
                       I'm your AgroFlow AI assistant. Ask me anything about your
                       crops, harvest timing, soil health, weather, or deliveries.

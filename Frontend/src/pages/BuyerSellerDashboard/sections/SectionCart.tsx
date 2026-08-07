@@ -3,6 +3,14 @@ import { useCartStore } from '../../../store/cartStore';
 import { marketService } from '../../../services/marketService';
 import { useToast } from '../../../context/ToastContext';
 import { LoadingButton } from '../../../components/LoadingButton/LoadingButton';
+import { 
+  RiShoppingCartLine, 
+  RiCloseLine, 
+  RiSubtractLine, 
+  RiAddLine,
+  RiErrorWarningLine,
+  RiLeafLine
+} from 'react-icons/ri';
 
 interface Props {
   onOrderPlaced: () => void;
@@ -66,7 +74,9 @@ export function SectionCart({ onOrderPlaced }: Props) {
   if (items.length === 0) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: '#9ead9f' }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>🛒</div>
+        <div style={{ fontSize: 48, marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
+          <RiShoppingCartLine size={48} />
+        </div>
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Your cart is empty</div>
         <div style={{ fontSize: 13 }}>Browse the marketplace and add items you want to buy</div>
       </div>
@@ -128,9 +138,13 @@ export function SectionCart({ onOrderPlaced }: Props) {
                   borderRadius: 100,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
                 }}
               >
-                ⚠️ Only {item.listing.remainingQty}kg left
+                <RiErrorWarningLine size={10} />
+                Only {item.listing.remainingQty}kg left
               </div>
             )}
 
@@ -155,7 +169,7 @@ export function SectionCart({ onOrderPlaced }: Props) {
                   style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover' }}
                 />
               ) : (
-                '🌾'
+                <RiLeafLine size={28} color="#2d6a35" />
               )}
             </div>
 
@@ -204,7 +218,7 @@ export function SectionCart({ onOrderPlaced }: Props) {
                   opacity: (isCheckingOut || item.quantity <= 1) ? 0.5 : 1,
                 }}
               >
-                −
+                <RiSubtractLine size={14} />
               </button>
               <span 
                 style={{ 
@@ -234,7 +248,7 @@ export function SectionCart({ onOrderPlaced }: Props) {
                   opacity: (isCheckingOut || item.quantity >= item.listing.remainingQty) ? 0.5 : 1,
                 }}
               >
-                +
+                <RiAddLine size={14} />
               </button>
             </div>
 
@@ -252,7 +266,7 @@ export function SectionCart({ onOrderPlaced }: Props) {
                 opacity: isCheckingOut ? 0.5 : 1,
               }}
             >
-              ✕
+              <RiCloseLine size={18} />
             </button>
           </div>
         );

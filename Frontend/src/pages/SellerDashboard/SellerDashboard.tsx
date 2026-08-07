@@ -23,11 +23,13 @@ import {
   type Request,
   type Order,
 } from "../../services/marketService";
+import { sellerService } from "../../services/sellerService";
 import { authService } from "../../services/authService";
 import { useToast } from "../../context/ToastContext";
 import { ConfirmModal } from "../../components/ConfirmModal/ConfirmModal";
 import { LoadingButton } from "../../components/LoadingButton/LoadingButton";
 import PageLoader from "../../components/PageLoader/PageLoader";
+import { VerificationModal } from "../../components/VerificationModal/VerificationModal";
 import { SectionDashboard } from "../BuyerSellerDashboard/sections/SectionDashboard";
 import { SectionMyStore } from "../BuyerSellerDashboard/sections/SectionMyStore";
 import { SectionMatches } from "../BuyerSellerDashboard/sections/SectionMatches";
@@ -103,6 +105,10 @@ export default function SellerDashboard() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+  // ── Verification State ──────────────────────────────────────────────
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+
   // ── Prevent back button from closing the app ──────────────────────────
   useEffect(() => {
     window.history.pushState(null, '', window.location.href);
@@ -114,6 +120,61 @@ export default function SellerDashboard() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // ── Check verification status on load ──────────────────────────────
+  useEffect(() => {
+    const checkVerification = async () => {
+      try {
+        const status = await sellerService.getMyVerificationStatus();
+        if (status.seller?.verificationStatus === 'verified') {
+          setIsVerified(true);
+        }
+      } catch (error) {
+        console.error('Error checking verification:', error);
+      }
+    };
+    checkVerification();
+  }, []);
+
+  // ── Check verification and navigate ──────────────────────────────────
+  const checkVerificationAndNavigate = async (targetSection: Section) => {
+    // If it's not the sell section, just navigate
+    if (targetSection !== 'sell' && targetSection !== 'myStore') {
+      handleSetSection(targetSection);
+      return;
+    }
+
+    // If already verified, navigate
+    if (isVerified) {
+      handleSetSection(targetSection);
+      return;
+    }
+
+    try {
+      const status = await sellerService.getMyVerificationStatus();
+      
+      if (status.seller?.verificationStatus === 'verified') {
+        setIsVerified(true);
+        handleSetSection(targetSection);
+      } else if (status.seller?.verificationStatus === 'pending') {
+        setShowVerificationModal(true);
+      } else if (status.seller?.verificationStatus === 'rejected') {
+        setShowVerificationModal(true);
+      } else {
+        // Unverified - show prompt
+        setShowVerificationModal(true);
+      }
+    } catch (error) {
+      console.error('Error checking verification:', error);
+      // If error, still allow navigation (fallback)
+      handleSetSection(targetSection);
+    }
+  };
+
+  // ── Navigation handler ──────────────────────────────────────────────
+  const handleNavClick = (section: Section) => {
+    checkVerificationAndNavigate(section);
+  };
 
   // ── INITIAL LOAD ──────────────────────────────────────────────
   async function initialLoad() {
@@ -347,7 +408,7 @@ export default function SellerDashboard() {
                 key={item.id}
                 className={`${styles.navItem} ${section === item.id ? styles.navItemActive : ""}`}
                 onClick={() => {
-                  handleSetSection(item.id);
+                  handleNavClick(item.id);
                   setSidebar(false);
                 }}
               >
@@ -405,7 +466,7 @@ export default function SellerDashboard() {
             <div className={styles.topbarRight}>
               <button
                 className={styles.topbarIconBtn}
-                onClick={() => handleSetSection("notifications")}
+                onClick={() => handleNavClick("notifications")}
               >
                 <RiBellLine size={15} />
                 {unread > 0 && <div className={styles.notifBadge} />}
@@ -479,7 +540,7 @@ export default function SellerDashboard() {
                 <button
                   key={item.id}
                   className={`${styles.bottomNavItem} ${section === item.id ? styles.bottomNavItemActive : ""}`}
-                  onClick={() => handleSetSection(item.id as Section)}
+                  onClick={() => handleNavClick(item.id as Section)}
                 >
                   <div className={styles.bottomNavIcon}>
                     {item.icon}
@@ -496,6 +557,23 @@ export default function SellerDashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── Verification Modal ────────────────────────────────────────── */}
+      <VerificationModal
+        isOpen={showVerificationModal}
+        onClose={() => {
+          setShowVerificationModal(false);
+        }}
+        onVerified={() => {
+          setIsVerified(true);
+          handleSetSection('sell');
+          addToast('Verification complete! You can now post listings.', 'success');
+        }}
+        onGoToSettings={() => {
+          setShowVerificationModal(false);
+          handleSetSection('settings');
+        }}
+      />
 
       <FloatingAI />
     </>

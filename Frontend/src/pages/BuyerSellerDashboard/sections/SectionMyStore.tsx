@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RiMore2Fill } from "react-icons/ri";
+import { RiMore2Fill, RiStore3Line } from "react-icons/ri";
 import { MdDeleteOutline } from "react-icons/md";
 import { ListingCard } from "../components/ListingCard";
 import { SectionRequests } from "./SectionRequests";
@@ -102,7 +102,9 @@ export function SectionMyStore({ listings, onRefresh }: SectionMyStoreProps) {
       {/* Listings Grid */}
       {listings.length === 0 ? (
         <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}>🌾</div>
+          <div className={styles.emptyIcon}>
+            <RiStore3Line size={48} color="#9ead9f" />
+          </div>
           <div className={styles.emptyTitle}>No listings yet</div>
           <div className={styles.emptyText}>
             Start selling by posting your first produce listing.

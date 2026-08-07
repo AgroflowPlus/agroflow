@@ -122,7 +122,11 @@ export interface Notification {
   createdAt: string
 }
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://ai-farmer-platform-backend-code.onrender.com/api'
+// ── BASE_URL AND DEBUG LOGS ─────────
+const BASE_URL = 'http://localhost:5000/api';
+
+console.log('🔍 VITE_API_URL:', import.meta.env.VITE_API_URL)
+console.log('🔍 BASE_URL:', BASE_URL)
 
 function getToken(): string {
   return localStorage.getItem('agroflow_token') || localStorage.getItem('agf_token') || ''
@@ -147,7 +151,7 @@ async function apiFetch(url: string, options: RequestInit = {}): Promise<Respons
   } catch (err: any) {
     clearTimeout(timeout)
     if (err.name === 'AbortError') {
-      throw new Error('Server is waking up. Please try again in a moment.')
+      throw new Error('Request failed. Please try again.')
     }
     throw err
   }
@@ -240,10 +244,10 @@ export const marketService = {
         headers: authHeaders(),
       });
       const data = await res.json();
-      return data.matches || [];
+      return data.matches || []
     } catch (error) {
-      console.error('Get AI recommendations error:', error);
-      return [];
+      console.error('Get AI recommendations error:', error)
+      return []
     }
   },
 
@@ -454,3 +458,5 @@ export const marketService = {
   getRequestsByBuyer(_id: string): Request[]      { return [] },
   getListingsBySeller_sync(_: string): Listing[]  { return [] },
 }
+
+export { apiFetch };
