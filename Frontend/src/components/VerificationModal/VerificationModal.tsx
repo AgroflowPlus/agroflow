@@ -188,7 +188,7 @@ export function VerificationModal({ isOpen, onClose, onVerified, onGoToSettings 
 
           {/* Selfie Upload */}
           <div className={styles.formGroup}>
-            <label className={styles.label}>Selfie Photo <span className={styles.required}>*</span></label>
+            <label className={styles.label}>A Clear Selfie Photo of Yourself <span className={styles.required}>*</span></label>
             <div className={styles.uploadArea} onClick={() => fileInputRef.current?.click()}>
               {selfie ? (
                 <div className={styles.selfiePreview}>

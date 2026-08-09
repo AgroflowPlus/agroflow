@@ -41,9 +41,6 @@ app.use(
   }),
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
 app.get("/health", (_req, res) => {
   res.json({ status: "AgroFlow+ backend is running", timestamp: new Date() });
 });
