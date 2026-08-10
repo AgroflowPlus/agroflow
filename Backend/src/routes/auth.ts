@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt, { SignOptions } from "jsonwebtoken";
 import prisma from "../db/index";
+import { notifyNewUserToAdmins } from "../services/notificationService";
 
 const router = Router();
 
@@ -15,7 +16,7 @@ function generateToken(payload: { id: string; email: string; role: string }) {
 
 // ── REGISTER ─────────────────────────
 router.post('/register', async (req: Request, res: Response) => {
-  console.log('📝 Register hit:', req.body) // ADD THIS
+  console.log('📝 Register hit:', req.body)
   try {
     const { name, email, phone, password, role, location } = req.body;
 
@@ -59,7 +60,6 @@ router.post('/register', async (req: Request, res: Response) => {
           location: location || "",
         },
       });
-      // ALSO create seller profile for farmers (so they can sell produce)
       await prisma.seller.create({
         data: { userId: user.id },
       });
@@ -67,11 +67,19 @@ router.post('/register', async (req: Request, res: Response) => {
       await prisma.buyer.create({
         data: {
           userId: user.id,
-          preferredLocation: location || null, // Store location in buyer profile too
+          preferredLocation: location || null,
         },
       });
     } else if (role === "seller") {
       await prisma.seller.create({ data: { userId: user.id } });
+    }
+
+    // ── NOTIFY ADMINS ABOUT NEW USER ──────────────────────────────
+    try {
+      await notifyNewUserToAdmins(user.name, user.email, user.role)
+      console.log(`🔔 Admin notification sent for new ${user.role}: ${user.name}`)
+    } catch (notifyError) {
+      console.error('Failed to send admin notification:', notifyError)
     }
 
     const token = generateToken({

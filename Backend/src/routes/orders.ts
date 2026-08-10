@@ -1,7 +1,12 @@
 import { Router, Response } from 'express'
 import prisma from '../db/index'
 import { protect, AuthRequest } from '../middleware/auth'
-import { notifyOrderStatusUpdate } from '../services/notificationService'
+import { 
+  notifyOrderStatusUpdate,
+  notifyNewOrderToAdmins,
+  notifyOrderCancelledToSeller,
+  notifyDeliveryConfirmedToSeller
+} from '../services/notificationService'
 
 const router = Router()
 
@@ -56,6 +61,29 @@ export async function createOrderFromMatch(
     console.log(`📦 Listing ${listingId} updated: remainingQty ${listing.remainingQty} → ${newQty}, status: ${newStatus}`)
   }
 
+  // ── NOTIFY ADMINS ABOUT NEW ORDER ──────────────────────────
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        buyer: { include: { user: true } },
+        seller: { include: { user: true } }
+      }
+    })
+    if (match) {
+      await notifyNewOrderToAdmins(
+        match.cropType,
+        match.quantity,
+        match.buyer.user.name,
+        match.seller.user.name,
+        order.id
+      )
+      console.log(`🔔 Admin notification sent for new order ${order.id}`)
+    }
+  } catch (notifyError) {
+    console.error('Failed to send admin order notification:', notifyError)
+  }
+
   return order
 }
 
@@ -64,7 +92,6 @@ router.get('/', protect, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id
 
-    // Get buyer and seller profiles for this user
     const buyer = await prisma.buyer.findUnique({
       where: { userId },
     })
@@ -73,7 +100,6 @@ router.get('/', protect, async (req: AuthRequest, res: Response) => {
       where: { userId },
     })
 
-    // Build filter to get orders where user is either buyer or seller
     const filter: any = {}
     if (buyer && seller) {
       filter.OR = [
@@ -85,7 +111,6 @@ router.get('/', protect, async (req: AuthRequest, res: Response) => {
     } else if (seller) {
       filter.sellerId = seller.id
     } else {
-      // No buyer or seller profile - return empty
       res.json({ orders: [] })
       return
     }
@@ -128,7 +153,6 @@ router.get('/', protect, async (req: AuthRequest, res: Response) => {
       },
     })
 
-    // Parse statusHistory from JSON string to object
     const formattedOrders = orders.map((order: any) => ({
       ...order,
       statusHistory: typeof order.statusHistory === 'string' 
@@ -149,7 +173,6 @@ router.get('/:orderId', protect, async (req: AuthRequest, res: Response) => {
     const orderId = getParam(req.params.orderId)
     const userId = req.user!.id
 
-    // Get buyer and seller profiles for this user
     const buyer = await prisma.buyer.findUnique({
       where: { userId },
     })
@@ -198,7 +221,6 @@ router.get('/:orderId', protect, async (req: AuthRequest, res: Response) => {
       return
     }
 
-    // Check if user has access to this order
     const isBuyer = buyer && order.buyerId === buyer.id
     const isSeller = seller && order.sellerId === seller.id
 
@@ -207,7 +229,6 @@ router.get('/:orderId', protect, async (req: AuthRequest, res: Response) => {
       return
     }
 
-    // Parse statusHistory from JSON string to object
     const formattedOrder = {
       ...order,
       statusHistory: typeof order.statusHistory === 'string' 
@@ -229,7 +250,6 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
     const { status, note } = req.body
     const userId = req.user!.id
 
-    // Validate status
     const validStatuses = [
       'placed',
       'accepted',
@@ -248,7 +268,6 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       return
     }
 
-    // Get buyer and seller profiles for this user
     const buyer = await prisma.buyer.findUnique({
       where: { userId },
     })
@@ -257,7 +276,6 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       where: { userId },
     })
 
-    // Get the order with buyer and seller details
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -296,7 +314,6 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       return
     }
 
-    // Check if user has access to update this order
     const isBuyer = buyer && order.buyerId === buyer.id
     const isSeller = seller && order.sellerId === seller.id
 
@@ -305,7 +322,6 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       return
     }
 
-    // Validate status transitions
     const currentStatus = order.status
     const validTransitions: Record<string, string[]> = {
       placed: ['accepted', 'cancelled'],
@@ -318,10 +334,7 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       cancelled: [],
     }
 
-    // Sellers can update from placed to accepted, and then through the flow
-    // Buyers can only cancel or complete (after delivery)
     if (isSeller) {
-      // Seller can update through the flow
       if (!validTransitions[currentStatus]?.includes(status) && status !== currentStatus) {
         res.status(400).json({
           error: `Cannot transition from ${currentStatus} to ${status}`,
@@ -329,9 +342,7 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
         return
       }
     } else if (isBuyer) {
-      // Buyer can only cancel or complete (after delivery)
       if (status === 'cancelled') {
-        // Buyer can cancel if order is not yet delivered or completed
         if (['delivered', 'completed'].includes(currentStatus)) {
           res.status(400).json({
             error: 'Cannot cancel an order that has been delivered or completed',
@@ -339,7 +350,6 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
           return
         }
       } else if (status === 'completed') {
-        // Buyer can complete only after delivery
         if (currentStatus !== 'delivered') {
           res.status(400).json({
             error: 'Can only complete an order after it has been delivered',
@@ -354,7 +364,6 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       }
     }
 
-    // Parse existing status history
     let statusHistory: Array<{ status: string; timestamp: string; note?: string }> = []
     try {
       statusHistory = typeof order.statusHistory === 'string'
@@ -364,14 +373,12 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       statusHistory = []
     }
 
-    // Add new status entry
     statusHistory.push({
       status,
       timestamp: new Date().toISOString(),
       note: note || `Status updated to ${status}`,
     })
 
-    // Update order
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: {
@@ -412,23 +419,41 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       },
     })
 
-    // ── NOTIFY BUYER ABOUT ORDER STATUS UPDATE ──────────────────────────
+    // ── NOTIFY BUYER/SELLER ABOUT ORDER STATUS UPDATE ──────────────────────────
     try {
+      const cropType = updatedOrder.match?.cropType || updatedOrder.match?.listing?.cropType || 'produce'
+      
+      // Notify buyer
       if (updatedOrder?.buyer?.userId) {
-        const cropType = updatedOrder.match?.cropType || updatedOrder.match?.listing?.cropType || 'produce'
         console.log(`🔔 Notifying buyer ${updatedOrder.buyer.userId} about order ${updatedOrder.id} status: ${status}`)
         await notifyOrderStatusUpdate(
-          updatedOrder.buyer.userId,
+          [updatedOrder.buyer.userId],
+          cropType,
           status,
-          cropType
+          updatedOrder.id
         )
       }
+
+      // Notify seller when order is completed or cancelled
+      if (updatedOrder?.seller?.userId) {
+        if (status === 'cancelled') {
+          const quantity = updatedOrder.match?.quantity || 0
+          await notifyOrderCancelledToSeller(
+            updatedOrder.seller.userId,
+            cropType,
+            quantity
+          )
+        } else if (status === 'delivered') {
+          await notifyDeliveryConfirmedToSeller(
+            updatedOrder.seller.userId,
+            cropType
+          )
+        }
+      }
     } catch (notifyError) {
-      // Don't fail the request if notification fails
       console.error('Failed to send order status notification:', notifyError)
     }
 
-    // Parse statusHistory for response
     const formattedOrder = {
       ...updatedOrder,
       statusHistory: typeof updatedOrder.statusHistory === 'string'
@@ -453,7 +478,6 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
     const { reason } = req.body
     const userId = req.user!.id
 
-    // Get buyer and seller profiles for this user
     const buyer = await prisma.buyer.findUnique({
       where: { userId },
     })
@@ -462,7 +486,6 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
       where: { userId },
     })
 
-    // Get the order
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -501,7 +524,6 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
       return
     }
 
-    // Check if user has access to cancel this order
     const isBuyer = buyer && order.buyerId === buyer.id
     const isSeller = seller && order.sellerId === seller.id
 
@@ -510,7 +532,6 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
       return
     }
 
-    // Check if order can be cancelled
     if (['delivered', 'completed'].includes(order.status)) {
       res.status(400).json({
         error: 'Cannot cancel an order that has been delivered or completed',
@@ -523,13 +544,11 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
       return
     }
 
-    // ── When cancelling, restore listing quantity ──────────────────────
     const listing = await prisma.listing.findUnique({
       where: { id: order.match?.listingId }
     })
 
     if (listing) {
-      // Restore the quantity that was reserved for this order
       const restoredQty = order.match?.quantity || 0
       const newQty = listing.remainingQty + restoredQty
       const newStatus = newQty > 0 ? 'available' : 'sold'
@@ -545,7 +564,6 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
       console.log(`📦 Listing ${listing.id} restored: remainingQty ${listing.remainingQty} → ${newQty}, status: ${newStatus}`)
     }
 
-    // Parse existing status history
     let statusHistory: Array<{ status: string; timestamp: string; note?: string }> = []
     try {
       statusHistory = typeof order.statusHistory === 'string'
@@ -555,14 +573,12 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
       statusHistory = []
     }
 
-    // Add cancellation entry
     statusHistory.push({
       status: 'cancelled',
       timestamp: new Date().toISOString(),
       note: reason || `Order cancelled by ${isSeller ? 'seller' : 'buyer'}`,
     })
 
-    // Update order
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: {
@@ -603,22 +619,22 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
       },
     })
 
-    // ── NOTIFY BUYER ABOUT ORDER CANCELLATION ────────────
+    // ── NOTIFY BUYER ABOUT ORDER CANCELLATION ────────────────────────────
     try {
       if (updatedOrder?.buyer?.userId) {
         const cropType = updatedOrder.match?.cropType || updatedOrder.match?.listing?.cropType || 'produce'
         console.log(`🔔 Notifying buyer ${updatedOrder.buyer.userId} about order ${updatedOrder.id} cancellation`)
         await notifyOrderStatusUpdate(
-          updatedOrder.buyer.userId,
+          [updatedOrder.buyer.userId],
+          cropType,
           'cancelled',
-          cropType
+          updatedOrder.id
         )
       }
     } catch (notifyError) {
       console.error('Failed to send order cancellation notification:', notifyError)
     }
 
-    // Parse statusHistory for response
     const formattedOrder = {
       ...updatedOrder,
       statusHistory: typeof updatedOrder.statusHistory === 'string'

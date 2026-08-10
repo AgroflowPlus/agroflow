@@ -1,6 +1,11 @@
 import { Router, Response } from 'express'
 import prisma from '../db/index'
 import { protect, AuthRequest } from '../middleware/auth'
+import { 
+  notifyNewVerificationToAdmins,
+  notifyVerificationApproved,
+  notifyVerificationRejected 
+} from '../services/notificationService'
 
 const router = Router()
 
@@ -68,6 +73,7 @@ router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
     // Check if seller profile exists
     let seller = await prisma.seller.findUnique({
       where: { userId },
+      include: { user: true }
     })
     console.log('🔍 Existing seller:', seller ? 'Found' : 'Not found')
 
@@ -80,6 +86,7 @@ router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
           selfieUrl,
           verificationNote: verificationNote || 'No additional info provided',
         },
+        include: { user: true }
       })
       console.log('✅ New seller created:', seller.id)
     } else {
@@ -91,8 +98,21 @@ router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
           selfieUrl,
           verificationNote: verificationNote || 'No additional info provided',
         },
+        include: { user: true }
       })
       console.log('✅ Seller updated:', seller.id)
+    }
+
+    // ── SEND PUSH TO ALL ADMINS ──────────────────────────────────────
+    try {
+      await notifyNewVerificationToAdmins(
+        seller.user.name,
+        seller.user.email,
+        seller.id
+      )
+      console.log('🔔 Admin push notification sent for verification')
+    } catch (notifyError) {
+      console.error('❌ Failed to send admin notification:', notifyError)
     }
 
     res.json({
@@ -167,6 +187,41 @@ router.get('/pending', protect, async (req: AuthRequest, res: Response) => {
   }
 })
 
+// ── GET SELLER BY ID ─────────────────────────────────────
+router.get('/:id', protect, async (req: AuthRequest, res: Response) => {
+  try {
+    const id = getParam(req.params.id)
+    if (!id) {
+      res.status(400).json({ error: 'Seller ID is required' })
+      return
+    }
+
+    const seller = await prisma.seller.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            location: true,
+          },
+        },
+        listings: true,
+      },
+    })
+    if (!seller) {
+      res.status(404).json({ error: 'Seller not found' })
+      return
+    }
+    res.json({ seller })
+  } catch (error) {
+    console.error('Get seller error:', error)
+    res.status(500).json({ error: 'Failed to fetch seller' })
+  }
+})
+
 // ── ADMIN: APPROVE SELLER ────────────────────────────────
 router.patch('/:id/approve', protect, async (req: AuthRequest, res: Response) => {
   try {
@@ -205,6 +260,14 @@ router.patch('/:id/approve', protect, async (req: AuthRequest, res: Response) =>
         },
       },
     })
+
+    // ── SEND PUSH TO SELLER ──────────────────────────────────────
+    try {
+      await notifyVerificationApproved(seller.user.id, seller.user.name)
+      console.log(`🔔 Approval notification sent to ${seller.user.name}`)
+    } catch (notifyError) {
+      console.error('❌ Failed to send approval notification:', notifyError)
+    }
 
     res.json({
       message: 'Seller approved successfully',
@@ -259,6 +322,14 @@ router.patch('/:id/reject', protect, async (req: AuthRequest, res: Response) => 
         },
       },
     })
+
+    // ── SEND PUSH TO SELLER ──────────────────────────────────────
+    try {
+      await notifyVerificationRejected(seller.user.id, seller.user.name, reason)
+      console.log(`🔔 Rejection notification sent to ${seller.user.name}`)
+    } catch (notifyError) {
+      console.error('❌ Failed to send rejection notification:', notifyError)
+    }
 
     res.json({
       message: 'Seller rejected',
