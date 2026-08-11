@@ -73,12 +73,13 @@ export async function sendNotificationToUsers(
   await Promise.allSettled(userIds.map(id => sendNotificationToUser(id, payload)))
 }
 
-// ── Get all admin user IDs ────────────────────────────────────────────
+// ── Get all admin user IDs ──────
 export async function getAllAdminUserIds(): Promise<string[]> {
   const admins = await prisma.user.findMany({
     where: { role: 'admin' },
     select: { id: true },
   })
+  console.log(`📋 Found ${admins.length} admin users`);
   return admins.map(a => a.id)
 }
 

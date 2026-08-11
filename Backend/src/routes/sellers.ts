@@ -4,7 +4,8 @@ import { protect, AuthRequest } from '../middleware/auth'
 import { 
   notifyNewVerificationToAdmins,
   notifyVerificationApproved,
-  notifyVerificationRejected 
+  notifyVerificationRejected,
+  getAllAdminUserIds 
 } from '../services/notificationService'
 
 const router = Router()
@@ -103,16 +104,26 @@ router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
       console.log('✅ Seller updated:', seller.id)
     }
 
-    // ── SEND PUSH TO ALL ADMINS ──────────────────────────────────────
+    // ── DEBUG: Check admin users ──────────────────────────────────────
+    console.log('🔍 [PUSH DEBUG] Starting push notification process...');
     try {
-      await notifyNewVerificationToAdmins(
-        seller.user.name,
-        seller.user.email,
-        seller.id
-      )
-      console.log('🔔 Admin push notification sent for verification')
+      const adminIds = await getAllAdminUserIds();
+      console.log(`🔍 [PUSH DEBUG] Found ${adminIds.length} admin users`);
+      console.log(`🔍 [PUSH DEBUG] Admin IDs:`, adminIds);
+      
+      if (adminIds.length === 0) {
+        console.log('⚠️ [PUSH DEBUG] No admin users found! Push notification will not be sent.');
+      } else {
+        console.log(`🔍 [PUSH DEBUG] Sending verification notification to ${adminIds.length} admins...`);
+        await notifyNewVerificationToAdmins(
+          seller.user.name,
+          seller.user.email,
+          seller.id
+        )
+        console.log('✅ [PUSH DEBUG] Admin push notification sent successfully for verification')
+      }
     } catch (notifyError) {
-      console.error('❌ Failed to send admin notification:', notifyError)
+      console.error('❌ [PUSH DEBUG] Failed to send admin notification:', notifyError)
     }
 
     res.json({
@@ -261,12 +272,19 @@ router.patch('/:id/approve', protect, async (req: AuthRequest, res: Response) =>
       },
     })
 
-    // ── SEND PUSH TO SELLER ──────────────────────────────────────
+    // ── DEBUG: Check if seller has push subscription ────────────────
+    console.log(`🔍 [PUSH DEBUG] Approving seller ${seller.id} (${seller.user.name})`);
     try {
+      // Check if seller has subscriptions
+      const subs = await prisma.pushSubscription.findMany({
+        where: { userId: seller.user.id }
+      });
+      console.log(`🔍 [PUSH DEBUG] Seller has ${subs.length} push subscriptions`);
+      
       await notifyVerificationApproved(seller.user.id, seller.user.name)
-      console.log(`🔔 Approval notification sent to ${seller.user.name}`)
+      console.log(`✅ [PUSH DEBUG] Approval notification sent to ${seller.user.name}`)
     } catch (notifyError) {
-      console.error('❌ Failed to send approval notification:', notifyError)
+      console.error('❌ [PUSH DEBUG] Failed to send approval notification:', notifyError)
     }
 
     res.json({
@@ -323,12 +341,19 @@ router.patch('/:id/reject', protect, async (req: AuthRequest, res: Response) => 
       },
     })
 
-    // ── SEND PUSH TO SELLER ──────────────────────────────────────
+    // ── DEBUG: Check if seller has push subscription ────────────────
+    console.log(`🔍 [PUSH DEBUG] Rejecting seller ${seller.id} (${seller.user.name})`);
     try {
+      // Check if seller has subscriptions
+      const subs = await prisma.pushSubscription.findMany({
+        where: { userId: seller.user.id }
+      });
+      console.log(`🔍 [PUSH DEBUG] Seller has ${subs.length} push subscriptions`);
+      
       await notifyVerificationRejected(seller.user.id, seller.user.name, reason)
-      console.log(`🔔 Rejection notification sent to ${seller.user.name}`)
+      console.log(`✅ [PUSH DEBUG] Rejection notification sent to ${seller.user.name}`)
     } catch (notifyError) {
-      console.error('❌ Failed to send rejection notification:', notifyError)
+      console.error('❌ [PUSH DEBUG] Failed to send rejection notification:', notifyError)
     }
 
     res.json({
