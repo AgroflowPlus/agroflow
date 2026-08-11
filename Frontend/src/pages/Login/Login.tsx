@@ -14,6 +14,22 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email)
 }
 
+// ── User-friendly error messages ──────────────────────────
+function getUserFriendlyError(error: unknown): string {
+  // Network errors
+  if (error instanceof TypeError && error.message === 'Failed to fetch') {
+    return 'Unable to connect. Please check your internet connection.'
+  }
+  
+  // Network errors (alternative)
+  if (error instanceof Error && error.message.includes('NetworkError')) {
+    return 'Connection lost. Please check your network and try again.'
+  }
+  
+  // All other errors
+  return 'Something went wrong. Please try again.'
+}
+
 export default function Login() {
   const navigate = useNavigate()
 
@@ -80,9 +96,7 @@ export default function Login() {
       }, 80)
 
     } catch (err: unknown) {
-      setApiError(
-        err instanceof Error ? err.message : 'Invalid email or password.'
-      )
+      setApiError(getUserFriendlyError(err))
       setLoading(false)
     }
   }
