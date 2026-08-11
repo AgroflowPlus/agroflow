@@ -1,6 +1,6 @@
 import { apiFetch } from './marketService';
 
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://ai-farmer-platform-backend-code.onrender.com/api';
 
 export interface SellerVerificationStatus {
   id: string;

@@ -123,7 +123,7 @@ export interface Notification {
 }
 
 // ── BASE_URL AND DEBUG LOGS ─────────
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://ai-farmer-platform-backend-code.onrender.com/api';
 
 console.log('🔍 VITE_API_URL:', import.meta.env.VITE_API_URL)
 console.log('🔍 BASE_URL:', BASE_URL)
