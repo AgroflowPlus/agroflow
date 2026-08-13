@@ -21,8 +21,14 @@ export const sellerService = {
       });
       const data = await res.json();
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Get verification status error:', error);
+      
+      // Check for network errors
+      if (!navigator.onLine || error.message === 'Failed to fetch' || error.message === 'NetworkError') {
+        return { verificationStatus: 'unverified' };
+      }
+      
       return { verificationStatus: 'unverified' };
     }
   },
@@ -54,7 +60,18 @@ export const sellerService = {
       }
       return { success: true };
     } catch (error: any) {
-      return { success: false, error: error.message || 'Failed to submit verification' };
+      console.error('Submit verification error:', error);
+      
+      // Check for network errors
+      if (!navigator.onLine || error.message === 'Failed to fetch' || error.message === 'NetworkError') {
+        return { success: false, error: 'No internet connection. Please check your network and try again.' };
+      }
+      
+      if (error.message === 'Something went wrong. Please try again.') {
+        return { success: false, error: error.message };
+      }
+      
+      return { success: false, error: 'Something went wrong. Please try again.' };
     }
   },
 };

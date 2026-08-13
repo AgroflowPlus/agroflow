@@ -6,14 +6,6 @@ import {
   RiRobot2Fill, 
   RiMicLine,
   RiSeedlingLine,
-  // RiCheckLine,
-  // RiEmotionHappyLine,
-  // RiSeedlingLine,
-  // RiSunLine,
-  // RiCloudLine,
-  // RiUserSmileLine,
-  // RiTimeLine,
-  // RiChatSmileLine
 } from "react-icons/ri";
 import { BsPerson, BsPencilSquare } from "react-icons/bs";
 import {
@@ -39,6 +31,7 @@ import { VoiceRecorder } from "../../components/VoiceRecorder/VoiceRecorder";
 import type { VoiceRecorderHandle } from "../../components/VoiceRecorder/VoiceRecorder";
 import { VoiceWave } from "../../components/VoiceWave/VoiceWave";
 import { useTTS } from "../../hooks/useTTS";
+import { apiFetch } from "../../services/marketService";
 
 // ──Onboarding ────────────────────────────────
 import {
@@ -77,18 +70,29 @@ async function fetchAIResponse(message: string): Promise<string> {
   const token = authService.getToken();
   if (!token) throw new Error("Not authenticated");
 
-  const res = await fetch(`${BASE_URL}/ai/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ message }),
-  });
+  try {
+    const res = await apiFetch(`${BASE_URL}/ai/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ message }),
+    });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "AI request failed");
-  return data.aiText as string;
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error ?? data.message ?? "Something went wrong");
+    }
+    return data.aiText as string;
+  } catch (error: any) {
+    // Handle authentication errors
+    if (error.message === "Not authenticated") {
+      throw new Error("Your session has expired. Please log in again.");
+    }
+    // Re-throw apiFetch errors (they're already user-friendly)
+    throw error;
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -436,11 +440,14 @@ export default function FarmerChat() {
         text:
           err.message === "Not authenticated"
             ? "Your session has expired. Please log in again."
-            : "Sorry, I'm having trouble connecting right now. Please try again in a moment.",
+            : "Something went wrong. Please try again.",
         time: nowTime(),
       };
       setMessages((prev) => [...prev, errMsg]);
-      addToast(err.message || "Failed to send message", "error");
+      
+      // Use the error message from apiFetch (already user-friendly)
+      const errorMessage = err.message || "Something went wrong. Please try again.";
+      addToast(errorMessage, "error");
     } finally {
       setTyping(false);
       inputRef.current?.focus();

@@ -151,9 +151,12 @@ async function apiFetch(url: string, options: RequestInit = {}): Promise<Respons
   } catch (err: any) {
     clearTimeout(timeout)
     if (err.name === 'AbortError') {
-      throw new Error('Request failed. Please try again.')
+      throw new Error('Something went wrong. Please try again.')
     }
-    throw err
+    if (!navigator.onLine || err.message === 'Failed to fetch') {
+      throw new Error('No internet connection. Please check your network and try again.')
+    }
+    throw new Error('Something went wrong. Please try again.')
   }
 }
 

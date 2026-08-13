@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RiMore2Fill, RiStore3Line } from "react-icons/ri";
+import { RiStore3Line, RiArrowLeftLine } from "react-icons/ri";
 import { MdDeleteOutline } from "react-icons/md";
 import { ListingCard } from "../components/ListingCard";
 import { SectionRequests } from "./SectionRequests";
@@ -15,7 +15,7 @@ interface SectionMyStoreProps {
 
 export function SectionMyStore({ listings, onRefresh }: SectionMyStoreProps) {
   const { addToast } = useToast();
-  const [showRequests, setShowRequests] = useState(false);
+  const [viewingListingId, setViewingListingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -62,9 +62,38 @@ export function SectionMyStore({ listings, onRefresh }: SectionMyStoreProps) {
     }
   };
 
-  // Extract all requests from listings
-  const allRequests = listings.flatMap((l) => l.requests || []);
+  // ── Detail view for a single listing's requests ──────────────────
+  if (viewingListingId) {
+    const listing = listings.find(l => l.id === viewingListingId);
+    const listingRequests = listing?.requests || [];
+    
+    return (
+      <div className={styles.myStoreContainer}>
+        <button 
+          className={styles.backBtn} 
+          onClick={() => setViewingListingId(null)}
+        >
+          <RiArrowLeftLine size={16} />
+          Back to My Store
+        </button>
+        <div className={styles.myStoreHeader}>
+          <div>
+            <h2 className={styles.myStoreTitle}>Requests for {listing?.cropType}</h2>
+            <p className={styles.myStoreSubtitle}>
+              {listingRequests.length} request{listingRequests.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+        </div>
+        <SectionRequests
+          requests={listingRequests}
+          onAccept={handleAcceptRequest}
+          onReject={handleRejectRequest}
+        />
+      </div>
+    );
+  }
 
+  // ── Main view ──────────────────────────────────────────────────────
   return (
     <div className={styles.myStoreContainer}>
       {/* Header */}
@@ -75,29 +104,7 @@ export function SectionMyStore({ listings, onRefresh }: SectionMyStoreProps) {
             {listings.length} active listing{listings.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <div className={styles.myStoreActions}>
-          {allRequests.length > 0 && (
-            <button
-              className={`${styles.requestToggleBtn} ${showRequests ? styles.requestToggleBtnActive : ""}`}
-              onClick={() => setShowRequests(!showRequests)}
-            >
-              <RiMore2Fill size={16} />
-              {showRequests ? "Hide Requests" : `Requests (${allRequests.length})`}
-            </button>
-          )}
-        </div>
       </div>
-
-      {/* Requests Section */}
-      {showRequests && (
-        <div className={styles.requestsSection}>
-          <SectionRequests
-            requests={allRequests}
-            onAccept={handleAcceptRequest}
-            onReject={handleRejectRequest}
-          />
-        </div>
-      )}
 
       {/* Listings Grid */}
       {listings.length === 0 ? (
@@ -112,23 +119,39 @@ export function SectionMyStore({ listings, onRefresh }: SectionMyStoreProps) {
         </div>
       ) : (
         <div className={styles.marketplaceGrid}>
-          {listings.map((listing) => (
-            <div key={listing.id} className={styles.listingCardWrapper}>
-              <ListingCard
-                listing={listing}
-                intent="sell"
-                onRequestToBuy={() => {}}
-              />
-              <button
-                className={styles.deleteListingBtn}
-                onClick={() => setDeleteTarget(listing.id)}
-                disabled={isDeleting}
-                aria-label="Delete listing"
-              >
-                <MdDeleteOutline size={16} />
-              </button>
-            </div>
-          ))}
+          {listings.map((listing) => {
+            const requestCount = listing.requests?.length || 0;
+            
+            return (
+              <div key={listing.id} className={styles.listingCardWrapper}>
+                <ListingCard
+                  listing={listing}
+                  intent="sell"
+                  onRequestToBuy={() => {}}
+                />
+                
+                {/* Request count badge - only show if there are requests */}
+                {requestCount > 0 && (
+                  <button
+                    className={styles.requestCountBadge}
+                    onClick={() => setViewingListingId(listing.id)}
+                    aria-label={`View ${requestCount} request${requestCount !== 1 ? 's' : ''}`}
+                  >
+                    {requestCount} request{requestCount !== 1 ? "s" : ""}
+                  </button>
+                )}
+                
+                <button
+                  className={styles.deleteListingBtn}
+                  onClick={() => setDeleteTarget(listing.id)}
+                  disabled={isDeleting}
+                  aria-label="Delete listing"
+                >
+                  <MdDeleteOutline size={16} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 

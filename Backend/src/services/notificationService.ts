@@ -85,7 +85,7 @@ export async function getAllAdminUserIds(): Promise<string[]> {
 
 // ── NOTIFICATION TEMPLATES ─────────────────────────────────────────────
 
-// ── 1. NEW LISTING ────────────────────────────────────────────────────
+// ── 1. NEW LISTING ────────────────────────
 export async function notifyNewListing(buyerUserIds: string[], cropType: string, location: string) {
   await sendNotificationToUsers(buyerUserIds, {
     title: `🌾 New ${cropType} Available`,

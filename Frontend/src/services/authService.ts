@@ -13,14 +13,41 @@ const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /* ── Real API request ──────────────────────────────────── */
 async function request<T>(endpoint: string, options: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  const data = await res.json();
-  if (!res.ok)
-    throw new Error(data.error ?? data.message ?? "Something went wrong");
-  return data as T;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+  try {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      ...options,
+    });
+    clearTimeout(timeout);
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error ?? data.message ?? "Something went wrong");
+    }
+    return data as T;
+  } catch (error: any) {
+    clearTimeout(timeout);
+    
+    // Handle timeout
+    if (error.name === 'AbortError') {
+      throw new Error('Something went wrong. Please try again.');
+    }
+    
+    // Handle network errors
+    if (!navigator.onLine || error.message === 'Failed to fetch' || error.message === 'NetworkError') {
+      throw new Error('No internet connection. Please check your network and try again.');
+    }
+    
+    // Re-throw the error if it's already a user-friendly message
+    if (error.message && !error.message.includes('fetch')) {
+      throw error;
+    }
+    
+    throw new Error('Something went wrong. Please try again.');
+  }
 }
 
 /* ── Auth Service ──────────────────────────────────────── */
@@ -51,7 +78,7 @@ export const authService = {
   saveSession: (res: AuthResponse) => {
     localStorage.setItem("agf_token", res.token);
     localStorage.setItem("agf_user", JSON.stringify(res.user));
-    localStorage.setItem("agf_session_time", Date.now().toString()); // ADD
+    localStorage.setItem("agf_session_time", Date.now().toString());
     sessionStorage.setItem(JUST_LOGGED_IN_KEY, "1");
   },
 
@@ -102,7 +129,7 @@ export const authService = {
   clearSession: () => {
     localStorage.removeItem("agf_token");
     localStorage.removeItem("agf_user");
-    localStorage.removeItem("agf_session_time"); // ADD
+    localStorage.removeItem("agf_session_time");
     sessionStorage.removeItem(JUST_LOGGED_IN_KEY);
   },
 
