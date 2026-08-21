@@ -109,11 +109,19 @@ const firstName = user.name?.split(" ")[0] ?? "Farmer";
 function newId() {
   return Math.random().toString(36).slice(2);
 }
+
 function nowTime() {
   return new Date().toLocaleTimeString("en-NG", {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -694,7 +702,7 @@ export default function FarmerChat() {
                     <div className={styles.emptyOrb}>
                       <RiRobot2Fill size={36} style={{ color: "#2d6a35" }} />
                     </div>
-                    <h2 className={styles.emptyTitle}>Good morning, {firstName}</h2>
+                    <h2 className={styles.emptyTitle}>{getGreeting()}, {firstName}</h2>
                     <p className={styles.emptySubtitle}>
                       I'm your AgroFlow AI assistant. Ask me anything about your
                       crops, harvest timing, soil health, weather, or deliveries.

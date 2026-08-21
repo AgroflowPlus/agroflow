@@ -14,16 +14,17 @@ function generateToken(payload: { id: string; email: string; role: string }) {
   return jwt.sign(payload, secret, options);
 }
 
-// ── REGISTER ─────────────────────────
+// ── REGISTER ──────────────────────────────────────────────
 router.post('/register', async (req: Request, res: Response) => {
-  console.log('📝 Register hit:', req.body)
+  console.log('📝 Register hit:', req.body);
+  
   try {
     const { name, email, phone, password, role, location } = req.body;
 
     if (!name || !email || !password || !role) {
-      res
-        .status(400)
-        .json({ error: "Name, email, password and role are required" });
+      res.status(400).json({ 
+        error: "Name, email, password and role are required" 
+      });
       return;
     }
 
@@ -52,7 +53,7 @@ router.post('/register', async (req: Request, res: Response) => {
       },
     });
 
-    // Create role-specific profiles
+    // ── Create role-specific profiles ────────────────────────
     if (role === "farmer") {
       await prisma.farmer.create({
         data: {
@@ -60,6 +61,7 @@ router.post('/register', async (req: Request, res: Response) => {
           location: location || "",
         },
       });
+      // Farmers also get a seller profile
       await prisma.seller.create({
         data: { userId: user.id },
       });
@@ -71,15 +73,17 @@ router.post('/register', async (req: Request, res: Response) => {
         },
       });
     } else if (role === "seller") {
-      await prisma.seller.create({ data: { userId: user.id } });
+      await prisma.seller.create({
+        data: { userId: user.id },
+      });
     }
 
-    // ── NOTIFY ADMINS ABOUT NEW USER ──────────────────────────────
+    // ── NOTIFY ADMINS ABOUT NEW USER ─────────────────────────
     try {
-      await notifyNewUserToAdmins(user.name, user.email, user.role)
-      console.log(`🔔 Admin notification sent for new ${user.role}: ${user.name}`)
+      await notifyNewUserToAdmins(user.name, user.email, user.role);
+      console.log(`🔔 Admin notification sent for new ${user.role}: ${user.name}`);
     } catch (notifyError) {
-      console.error('Failed to send admin notification:', notifyError)
+      console.error('Failed to send admin notification:', notifyError);
     }
 
     const token = generateToken({
@@ -101,41 +105,42 @@ router.post('/register', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Register error FULL:', error?.message, error?.code, error)
+    console.error('Register error FULL:', error?.message, error?.code, error);
     res.status(500).json({ 
       error: 'Something went wrong during registration',
       detail: error?.message,
       code: error?.code
-    })
+    });
   }
 });
 
-// ── LOGIN ─────────────────────────────────────────
+// ── LOGIN ──────────────────────────────────────────────────
 router.post("/login", async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { phone, password } = req.body;
 
-    if (!email || !password) {
-      res.status(400).json({ error: "Email and password are required" });
+    // ── Phone number is now required for login ──────────────
+    if (!phone || !password) {
+      res.status(400).json({ error: "Phone number and password are required" });
       return;
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { phone } });
     if (!user) {
-      res.status(401).json({ error: "Invalid email or password" });
+      res.status(401).json({ error: "Invalid phone number or password" });
       return;
     }
 
     if (user.status === "suspended") {
-      res
-        .status(403)
-        .json({ error: "Your account has been suspended. Contact support." });
+      res.status(403).json({ 
+        error: "Your account has been suspended. Contact support." 
+      });
       return;
     }
 
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
-      res.status(401).json({ error: "Invalid email or password" });
+      res.status(401).json({ error: "Invalid phone number or password" });
       return;
     }
 
@@ -163,7 +168,7 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
-// ── GET CURRENT USER ──────────────────────────────
+// ── GET CURRENT USER ──────────────────────────────────────
 router.get("/me", async (req: Request, res: Response) => {
   try {
     const authHeader = req.headers.authorization;
@@ -198,15 +203,17 @@ router.get("/me", async (req: Request, res: Response) => {
     }
 
     res.json({ user });
-  } catch {
+  } catch (error) {
+    console.error("Get user error:", error);
     res.status(401).json({ error: "Invalid token" });
   }
 });
 
-// ── CREATE FIRST ADMIN ────────────────────────────
+// ── CREATE FIRST ADMIN ────────────────────────────────────
 router.post("/create-admin", async (req: Request, res: Response) => {
   console.log("🔥 create-admin route hit");
   console.log("Body received:", req.body);
+  
   try {
     const { name, email, password, secretKey } = req.body;
 

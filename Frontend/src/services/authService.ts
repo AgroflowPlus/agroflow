@@ -65,15 +65,15 @@ export const authService = {
     });
   },
 
-  login: async (payload: LoginPayload): Promise<AuthResponse> => {
-    return request<AuthResponse>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({
-        email: payload.email,
-        password: payload.password,
-      }),
-    });
-  },
+login: async (payload: LoginPayload): Promise<AuthResponse> => {
+  return request<AuthResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({
+      phone: payload.phone,
+      password: payload.password,
+    }),
+  });
+},
 
   saveSession: (res: AuthResponse) => {
     localStorage.setItem("agf_token", res.token);

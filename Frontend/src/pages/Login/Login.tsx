@@ -3,15 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { RiLeafFill } from 'react-icons/ri'
 import {
   BsArrowRight, BsEye, BsEyeSlash,
-  BsEnvelope, BsLockFill, BsExclamationCircle,
+  BsPhone, BsLockFill, BsExclamationCircle,
 } from 'react-icons/bs'
 import { authService, getContentImages } from '../../services/authService'
 import type { UserRole } from '../../types/auth'
 import styles from '../../styles/auth.module.css'
 
-// ── Email domain validation ───────────────────────────────
-function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email)
+// ── Phone number validation ───────────────────────────────
+function isValidPhone(phone: string): boolean {
+  const digits = phone.replace(/\s+/g, '')
+  return /^(\+234|0)[789]\d{9}$/.test(digits)
 }
 
 // ── User-friendly error messages ──────────────────────────
@@ -33,13 +34,13 @@ function getUserFriendlyError(error: unknown): string {
 export default function Login() {
   const navigate = useNavigate()
 
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [showPwd, setShowPwd]   = useState(false)
-  const [loading, setLoading]   = useState(false)
+  const [phone, setPhone]         = useState('')
+  const [password, setPassword]   = useState('')
+  const [showPwd, setShowPwd]     = useState(false)
+  const [loading, setLoading]     = useState(false)
   const [navigating, setNavigating] = useState(false)
-  const [apiError, setApiError] = useState('')
-  const [errors, setErrors]     = useState<Record<string, string>>({})
+  const [apiError, setApiError]   = useState('')
+  const [errors, setErrors]       = useState<Record<string, string>>({})
   const [sideImage, setSideImage] = useState(
     'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?w=900&q=90'
   )
@@ -53,11 +54,11 @@ export default function Login() {
   const validate = () => {
     const e: Record<string, string> = {}
 
-    // Email
-    if (!email.trim()) {
-      e.email = 'Email is required'
-    } else if (!isValidEmail(email.trim())) {
-      e.email = 'Enter a valid email address (e.g. you@example.com)'
+    // Phone
+    if (!phone.trim()) {
+      e.phone = 'Phone number is required'
+    } else if (!isValidPhone(phone.trim())) {
+      e.phone = 'Enter a valid Nigerian phone number (e.g. 08012345678)'
     }
 
     // Password
@@ -79,7 +80,7 @@ export default function Login() {
     setLoading(true)
 
     try {
-      const res = await authService.login({ email, password })
+      const res = await authService.login({ phone, password })
       authService.saveSession(res)
 
       const role: UserRole = res.user.role as UserRole
@@ -239,21 +240,21 @@ export default function Login() {
               <div className={styles.fields}>
 
                 <div className={styles.fieldGroup}>
-                  <label className={styles.fieldLabel}>Email Address</label>
+                  <label className={styles.fieldLabel}>Phone Number</label>
                   <div className={styles.fieldInputWrap}>
                     <span className={styles.fieldInputIcon}>
-                      <BsEnvelope size={14} />
+                      <BsPhone size={14} />
                     </span>
                     <input
-                      className={`${styles.fieldInput} ${errors['email'] ? styles.fieldError : ''}`}
-                      type="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      autoComplete="email"
+                      className={`${styles.fieldInput} ${errors['phone'] ? styles.fieldError : ''}`}
+                      type="tel"
+                      placeholder="08012345678"
+                      value={phone}
+                      onChange={e => setPhone(e.target.value)}
+                      autoComplete="tel"
                     />
                   </div>
-                  {err('email')}
+                  {err('phone')}
                 </div>
 
                 <div className={styles.fieldGroup}>

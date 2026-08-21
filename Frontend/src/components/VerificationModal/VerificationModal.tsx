@@ -1,20 +1,20 @@
-import { useState, useRef, useEffect } from 'react';
-import { 
-  RiCameraLine, 
-  RiSendPlaneLine, 
-  RiCloseLine, 
+import { useState, useRef, useEffect } from "react";
+import {
+  RiCameraLine,
+  RiSendPlaneLine,
+  RiCloseLine,
   RiTimeLine,
   RiBellLine,
   RiLockLine,
   RiCheckboxCircleLine,
   RiErrorWarningLine,
   RiBuildingLine,
-  RiCalendarLine
-} from 'react-icons/ri';
-import { LoadingButton } from '../LoadingButton/LoadingButton';
-import { useToast } from '../../context/ToastContext';
-import { sellerService } from '../../services/sellerService';
-import styles from './VerificationModal.module.css';
+  RiCalendarLine,
+} from "react-icons/ri";
+import { LoadingButton } from "../LoadingButton/LoadingButton";
+import { useToast } from "../../context/ToastContext";
+import { sellerService } from "../../services/sellerService";
+import styles from "./VerificationModal.module.css";
 
 interface VerificationModalProps {
   isOpen: boolean;
@@ -23,15 +23,25 @@ interface VerificationModalProps {
   onGoToSettings: () => void;
 }
 
-export function VerificationModal({ isOpen, onClose, onVerified, onGoToSettings }: VerificationModalProps) {
+export function VerificationModal({
+  isOpen,
+  onClose,
+  onVerified,
+  onGoToSettings,
+}: VerificationModalProps) {
   const { addToast } = useToast();
-  const [step, setStep] = useState<'prompt' | 'form' | 'submitted' | 'rejected'>('prompt');
-  const [selfie, setSelfie] = useState<string>('');
-  const [farmName, setFarmName] = useState<string>('');
-  const [yearsExperience, setYearsExperience] = useState<string>('');
-  const [description, setDescription] = useState('');
+  const [step, setStep] = useState<
+    "prompt" | "form" | "submitted" | "rejected"
+  >("prompt");
+  const [selfie, setSelfie] = useState<string>("");
+  const [farmName, setFarmName] = useState<string>("");
+  const [yearsExperience, setYearsExperience] = useState<string>("");
+  const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<{ status: string; note?: string } | null>(null);
+  const [status, setStatus] = useState<{
+    status: string;
+    note?: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check verification status on mount
@@ -49,27 +59,27 @@ export function VerificationModal({ isOpen, onClose, onVerified, onGoToSettings 
           status: result.seller.verificationStatus,
           note: result.seller.verificationNote,
         });
-        
-        if (result.seller.verificationStatus === 'verified') {
-          setStep('prompt');
+
+        if (result.seller.verificationStatus === "verified") {
+          setStep("prompt");
           onVerified();
           onClose();
           return;
-        } else if (result.seller.verificationStatus === 'pending') {
-          setStep('submitted');
+        } else if (result.seller.verificationStatus === "pending") {
+          setStep("submitted");
           return;
-        } else if (result.seller.verificationStatus === 'rejected') {
-          setStep('rejected');
+        } else if (result.seller.verificationStatus === "rejected") {
+          setStep("rejected");
           setStatus({
-            status: 'rejected',
+            status: "rejected",
             note: result.seller.verificationNote,
           });
           return;
         }
       }
-      setStep('prompt');
+      setStep("prompt");
     } catch (error) {
-      console.error('Error checking status:', error);
+      console.error("Error checking status:", error);
     }
   };
 
@@ -78,7 +88,7 @@ export function VerificationModal({ isOpen, onClose, onVerified, onGoToSettings 
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      addToast('Image too large. Please choose an image under 5MB.', 'error');
+      addToast("Image too large. Please choose an image under 5MB.", "error");
       return;
     }
 
@@ -92,113 +102,133 @@ export function VerificationModal({ isOpen, onClose, onVerified, onGoToSettings 
   // ── Updated handleSubmit with validation ──────────────────────────
   const handleSubmit = async () => {
     if (!selfie) {
-      addToast('Please upload a selfie photo', 'error');
+      addToast("Please upload a selfie photo", "error");
       return;
     }
     if (!farmName.trim()) {
-      addToast('Please enter your farm name', 'error');
+      addToast("Please enter your farm name", "error");
       return;
     }
     if (!description.trim()) {
-      addToast('Please tell us about your farm', 'error');
+      addToast("Please tell us about your farm", "error");
       return;
     }
 
     setLoading(true);
     try {
       const result = await sellerService.submitVerification(
-        selfie, 
+        selfie,
         description,
         farmName,
-        yearsExperience
+        yearsExperience,
       );
       if (result.success) {
-        setStep('submitted');
-        addToast('Verification submitted successfully!', 'success');
+        setStep("submitted");
+        addToast("Verification submitted successfully!", "success");
         // Check if notification is enabled
-        const notifEnabled = localStorage.getItem('agf_notifications_enabled') === 'true';
+        const notifEnabled =
+          localStorage.getItem("agf_notifications_enabled") === "true";
         if (!notifEnabled) {
-          addToast('Please enable notifications in Settings to get updates.', 'info');
+          addToast(
+            "Please enable notifications in Settings to get updates.",
+            "info",
+          );
         }
       } else {
-        addToast(result.error || 'Failed to submit verification', 'error');
+        addToast(result.error || "Failed to submit verification", "error");
       }
     } catch (error) {
-      addToast('An error occurred. Please try again.', 'error');
+      addToast("An error occurred. Please try again.", "error");
     } finally {
       setLoading(false);
     }
   };
 
   const handleResubmit = () => {
-    setStep('form');
-    setSelfie('');
-    setFarmName('');
-    setYearsExperience('');
-    setDescription('');
+    setStep("form");
+    setSelfie("");
+    setFarmName("");
+    setYearsExperience("");
+    setDescription("");
     setStatus(null);
   };
 
   if (!isOpen) return null;
 
   // ── PROMPT STEP ────────────────────────────────────────────────
-  if (step === 'prompt') {
+  if (step === "prompt") {
     return (
       <div className={styles.overlay} onClick={onClose}>
         <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
           <button className={styles.closeBtn} onClick={onClose}>
             <RiCloseLine size={24} />
           </button>
-          
+
           <div className={styles.promptIcon}>
             <RiLockLine size={40} />
           </div>
           <h2 className={styles.promptTitle}>Verification Required</h2>
           <p className={styles.promptText}>
-            You need to complete verification before you can post your produce for sale.
-            This helps us ensure a safe marketplace for all users.
+            You need to complete verification before you can post your produce
+            for sale. This helps us ensure a safe marketplace for all users.
           </p>
           <div className={styles.promptActions}>
-            <button className={styles.continueBtn} onClick={() => setStep('form')}>
+            <button
+              className={styles.continueBtn}
+              onClick={() => setStep("form")}
+            >
               Continue to Verification
             </button>
             <button className={styles.skipBtn} onClick={onClose}>
               Skip for Now
             </button>
           </div>
-          <p className={styles.promptNote}>You can always verify later from the sell page.</p>
+          <p className={styles.promptNote}>
+            You can always verify later from the sell page.
+          </p>
         </div>
       </div>
     );
   }
 
   // ── FORM STEP ────────────────────────────────────────────────────
-  if (step === 'form') {
+  if (step === "form") {
     return (
       <div className={styles.overlay} onClick={onClose}>
-        <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500 }}>
+        <div
+          className={styles.modal}
+          onClick={(e) => e.stopPropagation()}
+          style={{ maxWidth: 500 }}
+        >
           <button className={styles.closeBtn} onClick={onClose}>
             <RiCloseLine size={24} />
           </button>
-          
+
           <h2 className={styles.formTitle}>Complete Verification</h2>
           <p className={styles.formSubtitle}>
-            Tell us about yourself and your farm. This helps us build trust with buyers.
+            Tell us about yourself and your farm. This helps us build trust with
+            buyers.
           </p>
 
           {/* Selfie Upload */}
           <div className={styles.formGroup}>
-            <label className={styles.label}>A Clear Selfie Photo of Yourself <span className={styles.required}>*</span></label>
-            <div className={styles.uploadArea} onClick={() => fileInputRef.current?.click()}>
+            <label className={styles.label}>
+              A Clear Selfie Photo of Yourself{" "}
+              <span className={styles.required}>*</span>
+            </label>
+            <div
+              className={styles.uploadArea}
+              onClick={() => fileInputRef.current?.click()}
+            >
               {selfie ? (
                 <div className={styles.selfiePreview}>
                   <img src={selfie} alt="Selfie" />
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className={styles.removePhoto}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelfie('');
+                      setSelfie("");
                     }}
                   >
                     ✕
@@ -216,16 +246,20 @@ export function VerificationModal({ isOpen, onClose, onVerified, onGoToSettings 
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              capture="environment"
+              capture="user"
               onChange={handleFileSelect}
-              style={{ display: 'none' }}
+              style={{ display: "none" }}
             />
-            <p className={styles.helperText}>Max 5MB. Clear face photo preferred.</p>
+            <p className={styles.helperText}>
+              Max 5MB. Clear face photo preferred.
+            </p>
           </div>
 
           {/* Farm Name - Now Required */}
           <div className={styles.formGroup}>
-            <label className={styles.label}>Farm Name <span className={styles.required}>*</span></label>
+            <label className={styles.label}>
+              Farm Name <span className={styles.required}>*</span>
+            </label>
             <div className={styles.inputWrapper}>
               <RiBuildingLine className={styles.inputIcon} />
               <input
@@ -237,7 +271,9 @@ export function VerificationModal({ isOpen, onClose, onVerified, onGoToSettings 
                 maxLength={50}
               />
             </div>
-            <p className={styles.helperText}>Give your farm a name that buyers will recognize.</p>
+            <p className={styles.helperText}>
+              Give your farm a name that buyers will recognize.
+            </p>
           </div>
 
           {/* Years of Experience - Still Optional */}
@@ -256,12 +292,16 @@ export function VerificationModal({ isOpen, onClose, onVerified, onGoToSettings 
               />
               <span className={styles.inputSuffix}>years</span>
             </div>
-            <p className={styles.helperText}>Optional - Helps buyers trust your expertise.</p>
+            <p className={styles.helperText}>
+              Optional - Helps buyers trust your expertise.
+            </p>
           </div>
 
           {/* Description - Now Required */}
           <div className={styles.formGroup}>
-            <label className={styles.label}>About Your Farm <span className={styles.required}>*</span></label>
+            <label className={styles.label}>
+              About Your Farm <span className={styles.required}>*</span>
+            </label>
             <textarea
               className={styles.textarea}
               placeholder="Tell us about your farm, what you grow, and why you want to sell on AgroFlow+..."
@@ -274,7 +314,10 @@ export function VerificationModal({ isOpen, onClose, onVerified, onGoToSettings 
           {/* Notification Reminder */}
           <div className={styles.notificationReminder}>
             <RiBellLine size={18} />
-            <span>Turn on notifications in <strong>Settings</strong> to get updates on your verification status.</span>
+            <span>
+              Turn on notifications in <strong>Settings</strong> to get updates
+              on your verification status.
+            </span>
           </div>
 
           {/* Submit */}
@@ -292,21 +335,21 @@ export function VerificationModal({ isOpen, onClose, onVerified, onGoToSettings 
   }
 
   // ── SUBMITTED STEP ─────────────────────────────────────────────
-  if (step === 'submitted') {
+  if (step === "submitted") {
     return (
       <div className={styles.overlay} onClick={onClose}>
         <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
           <button className={styles.closeBtn} onClick={onClose}>
             <RiCloseLine size={24} />
           </button>
-          
+
           <div className={styles.successIcon}>
             <RiCheckboxCircleLine size={48} />
           </div>
           <h2 className={styles.successTitle}>Verification Submitted</h2>
           <p className={styles.successText}>
-            Your verification is now pending review by our admin team.
-            This usually takes 12-24 hours.
+            Your verification is now pending review by our admin team. This
+            usually takes 12-24 hours.
           </p>
           <div className={styles.successNote}>
             <RiTimeLine size={18} />
@@ -314,13 +357,20 @@ export function VerificationModal({ isOpen, onClose, onVerified, onGoToSettings 
           </div>
           <div className={styles.successReminder}>
             <RiBellLine size={18} />
-            <span>Make sure to <strong>turn on notifications</strong> in Settings to get updates.</span>
+            <span>
+              Make sure to <strong>turn on notifications</strong> in Settings to
+              get updates.
+            </span>
           </div>
-          
+
           <button className={styles.doneBtn} onClick={onGoToSettings}>
             Turn On Notifications
           </button>
-          <button className={styles.skipBtn} onClick={onClose} style={{ marginTop: 8 }}>
+          <button
+            className={styles.skipBtn}
+            onClick={onClose}
+            style={{ marginTop: 8 }}
+          >
             Maybe later
           </button>
         </div>
@@ -329,14 +379,14 @@ export function VerificationModal({ isOpen, onClose, onVerified, onGoToSettings 
   }
 
   // ── REJECTED STEP ───────────────────────
-  if (step === 'rejected' && status) {
+  if (step === "rejected" && status) {
     return (
       <div className={styles.overlay} onClick={onClose}>
         <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
           <button className={styles.closeBtn} onClick={onClose}>
             <RiCloseLine size={24} />
           </button>
-          
+
           <div className={styles.rejectedIcon}>
             <RiErrorWarningLine size={48} />
           </div>
@@ -345,7 +395,8 @@ export function VerificationModal({ isOpen, onClose, onVerified, onGoToSettings 
             Your verification was rejected for the following reason:
           </p>
           <div className={styles.rejectionReason}>
-            {status.note || 'Please provide a clearer selfie and more details about your farm.'}
+            {status.note ||
+              "Please provide a clearer selfie and more details about your farm."}
           </div>
           <button className={styles.resubmitBtn} onClick={handleResubmit}>
             Resubmit Verification
