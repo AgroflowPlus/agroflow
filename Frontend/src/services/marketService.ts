@@ -142,7 +142,7 @@ function authHeaders() {
 // ── API FETCH WITH TIMEOUT ──────────────────────────────────────────
 async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 15000) // 15 second max
+  const timeout = setTimeout(() => controller.abort(), 30000) // 15 second max
   
   try {
     const res = await fetch(url, { ...options, signal: controller.signal })
@@ -241,18 +241,24 @@ export const marketService = {
   },
 
   // ── AI RECOMMENDATIONS ──────────────────────────────────────
-  async getAIRecommendations(): Promise<AIRecommendation[]> {
-    try {
-      const res = await apiFetch(`${BASE_URL}/listings/ai-recommendations`, {
-        headers: authHeaders(),
-      });
-      const data = await res.json();
-      return data.matches || []
-    } catch (error) {
-      console.error('Get AI recommendations error:', error)
-      return []
-    }
-  },
+
+async getAIRecommendations(): Promise<AIRecommendation[]> {
+  try {
+    console.log('🔍 Fetching AI recommendations...');
+    const res = await apiFetch(`${BASE_URL}/listings/ai-recommendations`, {
+      headers: authHeaders(),
+    });
+    console.log('🔍 Response status:', res.status);
+    const data = await res.json();
+    console.log('🔍 Data received:', data);
+    return data.matches || []
+  } catch (error: any) {
+    console.error('❌ Get AI recommendations error DETAILED:', error);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    return []
+  }
+},
 
   // ── DEMAND / WAITLIST ─────────────────────────────────────
   async postDemand(data: {
