@@ -82,7 +82,21 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
   const [comment, setComment] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
 
+  // ── Rider Modal State ──────────────────────────────────────────────
+  const [riderModalOrder, setRiderModalOrder] = useState<any>(null);
+  const [riderName, setRiderName] = useState('');
+  const [riderPhone, setRiderPhone] = useState('');
+  const [riderPhoneConfirm, setRiderPhoneConfirm] = useState('');
+  const [riderSubmitting, setRiderSubmitting] = useState(false);
+
   const advance = async (orderId: string, newStatus: string) => {
+    // ── Intercept transport_assigned to show rider modal ──────────────
+    if (newStatus === 'transport_assigned') {
+      const order = orders.find(o => o.id === orderId);
+      setRiderModalOrder(order);
+      return;
+    }
+
     setProcessingId(orderId);
     try {
       const result = await marketService.updateOrderStatus(orderId, newStatus);
@@ -97,6 +111,50 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
       addToast('Failed to update order. Please try again.', 'error');
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  // ── Submit Rider Assignment ──────────────────────────────────────────
+  const submitRiderAssignment = async () => {
+    if (!riderModalOrder) return;
+
+    if (!riderName.trim()) {
+      addToast('Please enter the rider\'s name', 'error');
+      return;
+    }
+    if (!riderPhone.trim()) {
+      addToast('Please enter the rider\'s phone number', 'error');
+      return;
+    }
+    if (riderPhone.trim() !== riderPhoneConfirm.trim()) {
+      addToast('Phone numbers do not match. Please check and try again.', 'error');
+      return;
+    }
+
+    setRiderSubmitting(true);
+    try {
+      const result = await marketService.updateOrderStatus(
+        riderModalOrder.id,
+        'transport_assigned',
+        undefined,
+        riderName.trim(),
+        riderPhone.trim()
+      );
+      if (result.success) {
+        addToast('Rider assigned successfully!', 'success');
+        setRiderModalOrder(null);
+        setRiderName('');
+        setRiderPhone('');
+        setRiderPhoneConfirm('');
+        onUpdate();
+      } else {
+        addToast(result.error || 'Failed to assign rider', 'error');
+      }
+    } catch (error) {
+      console.error('Assign rider error:', error);
+      addToast('Failed to assign rider. Please try again.', 'error');
+    } finally {
+      setRiderSubmitting(false);
     }
   };
 
@@ -196,6 +254,43 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
               <span><RiShoppingBagLine size={12} style={{ verticalAlign: 'middle' }} /> {order.match?.buyer?.user?.name || 'Buyer'}</span>
               <span style={{ color: '#c8d4c2' }}>· {order.match?.distance}km</span>
             </div>
+
+            {/* ── RIDER INFO BLOCK ────────────────────────────────────────── */}
+            {order.riderName && order.riderPhone && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 14px',
+                background: '#f2f9e4',
+                border: '1px solid rgba(168,216,50,0.3)',
+                borderRadius: 10,
+                marginBottom: 16,
+              }}>
+                <RiTruckLine size={16} style={{ color: '#2d6a35', flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3d22' }}>
+                    Rider: {order.riderName}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#2d6a35' }}>{order.riderPhone}</div>
+                </div>
+                <a
+                  href={`tel:${order.riderPhone}`}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 100,
+                    background: '#a8d832',
+                    color: '#141f15',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    flexShrink: 0,
+                  }}
+                >
+                  Call
+                </a>
+              </div>
+            )}
 
             {/* Progress bar */}
             <div style={{ marginBottom: 16 }}>
@@ -298,7 +393,141 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
         );
       })}
 
-      {/* Review Modal */}
+      {/* ── Rider Assignment Modal ────────────────────────────────────── */}
+      {riderModalOrder && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: 20,
+        }}>
+          <div style={{ background: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 420 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <RiTruckLine size={20} />
+              Assign Rider
+            </h3>
+            <p style={{ fontSize: 12, color: '#9ead9f', marginBottom: 16 }}>
+              Enter the rider's details. The buyer will see this to coordinate delivery.
+            </p>
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#3a4f3d', display: 'block', marginBottom: 6 }}>
+                Rider's Full Name
+              </label>
+              <input
+                type="text"
+                value={riderName}
+                onChange={e => setRiderName(e.target.value)}
+                placeholder="e.g. John Adebayo"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: '1.5px solid #eaeee8',
+                  fontSize: 14,
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#3a4f3d', display: 'block', marginBottom: 6 }}>
+                Rider's Phone Number
+              </label>
+              <input
+                type="tel"
+                value={riderPhone}
+                onChange={e => setRiderPhone(e.target.value)}
+                placeholder="08012345678"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: '1.5px solid #eaeee8',
+                  fontSize: 14,
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#3a4f3d', display: 'block', marginBottom: 6 }}>
+                Confirm Phone Number
+              </label>
+              <input
+                type="tel"
+                value={riderPhoneConfirm}
+                onChange={e => setRiderPhoneConfirm(e.target.value)}
+                placeholder="Re-enter the phone number"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: `1.5px solid ${riderPhoneConfirm && riderPhoneConfirm !== riderPhone ? '#e05252' : '#eaeee8'}`,
+                  fontSize: 14,
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                }}
+              />
+              {riderPhoneConfirm && riderPhoneConfirm !== riderPhone && (
+                <div style={{ fontSize: 11, color: '#e05252', marginTop: 4, fontWeight: 600 }}>
+                  Phone numbers do not match
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => {
+                  setRiderModalOrder(null);
+                  setRiderName('');
+                  setRiderPhone('');
+                  setRiderPhoneConfirm('');
+                }}
+                style={{
+                  flex: 1,
+                  padding: 12,
+                  borderRadius: 10,
+                  border: '1.5px solid #eaeee8',
+                  background: '#f7f8f5',
+                  color: '#6b7f6e',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <LoadingButton
+                loading={riderSubmitting}
+                onClick={submitRiderAssignment}
+                style={{
+                  flex: 1,
+                  padding: 12,
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#a8d832',
+                  color: '#141f15',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Confirm & Assign
+              </LoadingButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Review Modal ────────────────────────────────────────────── */}
       {reviewingOrder && (
         <div style={{
           position: 'fixed',
@@ -370,7 +599,7 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
               }}
             />
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>  
               <button
                 onClick={() => {
                   setReviewingOrder(null);

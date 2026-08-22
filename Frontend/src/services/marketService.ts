@@ -95,6 +95,8 @@ export interface Order {
   status:         'placed' | 'accepted' | 'preparing' | 'transport_assigned' | 'in_transit' | 'delivered' | 'completed' | 'cancelled'
   statusHistory:  Array<{ status: string; timestamp: string; note?: string }>
   notes:          string
+  riderName?:     string     // ── NEW: Rider's name
+  riderPhone?:    string     // ── NEW: Rider's phone number
   createdAt:      string
   updatedAt:      string
 }
@@ -142,7 +144,7 @@ function authHeaders() {
 // ── API FETCH WITH TIMEOUT ──────────────────────────────────────────
 async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 30000) // 15 second max
+  const timeout = setTimeout(() => controller.abort(), 30000) // 30 second max
   
   try {
     const res = await fetch(url, { ...options, signal: controller.signal })
@@ -241,24 +243,23 @@ export const marketService = {
   },
 
   // ── AI RECOMMENDATIONS ──────────────────────────────────────
-
-async getAIRecommendations(): Promise<AIRecommendation[]> {
-  try {
-    console.log('🔍 Fetching AI recommendations...');
-    const res = await apiFetch(`${BASE_URL}/listings/ai-recommendations`, {
-      headers: authHeaders(),
-    });
-    console.log('🔍 Response status:', res.status);
-    const data = await res.json();
-    console.log('🔍 Data received:', data);
-    return data.matches || []
-  } catch (error: any) {
-    console.error('❌ Get AI recommendations error DETAILED:', error);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error stack:', error.stack);
-    return []
-  }
-},
+  async getAIRecommendations(): Promise<AIRecommendation[]> {
+    try {
+      console.log('🔍 Fetching AI recommendations...');
+      const res = await apiFetch(`${BASE_URL}/listings/ai-recommendations`, {
+        headers: authHeaders(),
+      });
+      console.log('🔍 Response status:', res.status);
+      const data = await res.json();
+      console.log('🔍 Data received:', data);
+      return data.matches || []
+    } catch (error: any) {
+      console.error('❌ Get AI recommendations error DETAILED:', error);
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error stack:', error.stack);
+      return []
+    }
+  },
 
   // ── DEMAND / WAITLIST ─────────────────────────────────────
   async postDemand(data: {
@@ -395,12 +396,19 @@ async getAIRecommendations(): Promise<AIRecommendation[]> {
     }
   },
 
-  async updateOrderStatus(orderId: string, status: string, note?: string): Promise<{ success: boolean; error?: string }> {
+  // ── UPDATE ORDER STATUS WITH RIDER INFO ──────────────────────
+  async updateOrderStatus(
+    orderId: string,
+    status: string,
+    note?: string,
+    riderName?: string,
+    riderPhone?: string
+  ): Promise<{ success: boolean; error?: string }> {
     try {
       const res = await apiFetch(`${BASE_URL}/orders/${orderId}/status`, {
         method:  'PATCH',
         headers: authHeaders(),
-        body:    JSON.stringify({ status, note })
+        body:    JSON.stringify({ status, note, riderName, riderPhone })
       })
       const json = await res.json()
       if (!res.ok) return { success: false, error: json.error }

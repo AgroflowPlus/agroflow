@@ -247,7 +247,7 @@ router.get('/:orderId', protect, async (req: AuthRequest, res: Response) => {
 router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response) => {
   try {
     const orderId = getParam(req.params.orderId)
-    const { status, note } = req.body
+    const { status, note, riderName, riderPhone } = req.body  // ← Added riderName and riderPhone
     const userId = req.user!.id
 
     const validStatuses = [
@@ -264,6 +264,14 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
     if (!status || !validStatuses.includes(status)) {
       res.status(400).json({
         error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+      })
+      return
+    }
+
+    // ── VALIDATE RIDER INFO FOR TRANSPORT_ASSIGNED ──────────────
+    if (status === 'transport_assigned' && (!riderName || !riderPhone)) {
+      res.status(400).json({
+        error: 'Rider name and phone number are required to assign transport',
       })
       return
     }
@@ -379,12 +387,15 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       note: note || `Status updated to ${status}`,
     })
 
+    // ── UPDATE ORDER WITH RIDER INFO ──────────────────────────────
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: {
         status: status as any,
         statusHistory: JSON.stringify(statusHistory),
         notes: note ? (order.notes ? `${order.notes}\n${note}` : note) : order.notes,
+        ...(riderName && { riderName }),
+        ...(riderPhone && { riderPhone }),
       },
       include: {
         match: {
