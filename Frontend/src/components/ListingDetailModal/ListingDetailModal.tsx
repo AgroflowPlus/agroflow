@@ -15,6 +15,124 @@ const CROP_ICON: Record<CropType, React.ReactElement> = {
   Pepper: <GiChiliPepper size={28} />,
 };
 
+// ── Image Carousel Component ──────────────────────────────────────────────
+function ImageCarousel({ photos, alt }: { photos: string[]; alt: string }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [touchStartX, setTouchStartX] = useState<number>(0);
+
+  const goTo = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    setActiveIndex(index);
+  };
+
+  const goNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveIndex((prev) => (prev + 1) % photos.length);
+  };
+
+  const goPrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveIndex((prev) => (prev - 1 + photos.length) % photos.length);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX - touchEndX;
+    const threshold = 40;
+
+    if (diff > threshold) {
+      setActiveIndex((prev) => (prev + 1) % photos.length);
+    } else if (diff < -threshold) {
+      setActiveIndex((prev) => (prev - 1 + photos.length) % photos.length);
+    }
+  };
+
+  return (
+    <div
+      style={{ position: 'relative', width: '100%', height: '100%' }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      <img
+        src={photos[activeIndex]}
+        alt={alt}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+        }}
+      />
+
+      {photos.length > 1 && (
+        <>
+          {/* Left tap zone */}
+          <div
+            onClick={goPrev}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '35%',
+              height: '100%',
+              cursor: 'pointer',
+              zIndex: 2,
+            }}
+          />
+          {/* Right tap zone */}
+          <div
+            onClick={goNext}
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: '35%',
+              height: '100%',
+              cursor: 'pointer',
+              zIndex: 2,
+            }}
+          />
+
+          {/* Dots */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 12,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              gap: 6,
+              zIndex: 3,
+            }}
+          >
+            {photos.map((_, i) => (
+              <button
+                key={i}
+                onClick={(e) => goTo(e, i)}
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  background: i === activeIndex ? '#fff' : 'rgba(255,255,255,0.5)',
+                  boxShadow: '0 0 3px rgba(0,0,0,0.3)',
+                  transition: 'background 0.2s',
+                }}
+                aria-label={`View photo ${i + 1}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 interface ListingDetailModalProps {
   listing: Listing | null;
   isOpen: boolean;
@@ -43,7 +161,6 @@ export function ListingDetailModal({ listing, isOpen, onClose, onRequestToBuy }:
   const handleRequestToBuy = async () => {
     const qty = Number(requestQty);
     
-    // Validation
     if (!requestQty) {
       addToast('Please enter a quantity', 'error');
       return;
@@ -138,10 +255,10 @@ export function ListingDetailModal({ listing, isOpen, onClose, onRequestToBuy }:
           {liked ? <MdFavorite size={20} color="#e05252" /> : <MdFavoriteBorder size={20} color="#9ead9f" />}
         </button>
 
-        {/* Image Section */}
+        {/* ── IMAGE SECTION WITH CAROUSEL ────────────────────────────────────── */}
         <div className={styles.imageSection}>
-          {listing.photoUrl ? (
-            <img src={listing.photoUrl} alt={listing.cropType} className={styles.image} />
+          {listing.photoUrls && listing.photoUrls.length > 0 ? (
+            <ImageCarousel photos={listing.photoUrls} alt={listing.cropType} />
           ) : (
             <div className={styles.imagePlaceholder}>
               <div className={styles.placeholderIcon}>

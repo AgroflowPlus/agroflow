@@ -80,7 +80,6 @@ export default function Register() {
     password: "",
     location: "",
   });
-  const [step] = useState(0);
 
   useEffect(() => {
     getContentImages().then((imgs) => {

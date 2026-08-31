@@ -354,22 +354,22 @@ export default function BuyerDashboard() {
   );
 
   // Convert AI recommendations to Listing format for ListingCard
-  const aiListings: Listing[] = aiRecommendations.map((rec) => ({
-    id: rec.listingId,
-    sellerId: rec.sellerId,
-    sellerName: rec.sellerName,
-    sellerEmail: "",
-    sellerPhone: "",
-    cropType: rec.cropType,
-    quantity: rec.quantity,
-    remainingQty: rec.quantity,
-    location: rec.location,
-    description: "",
-    photoUrl: rec.photoUrl ?? undefined,
-    status: "available",
-    createdAt: new Date().toISOString(),
-    distance: rec.distance,
-  }));
+const aiListings: Listing[] = aiRecommendations.map((rec) => ({
+  id: rec.listingId,
+  sellerId: rec.sellerId,
+  sellerName: rec.sellerName,
+  sellerEmail: "",
+  sellerPhone: "",
+  cropType: rec.cropType,
+  quantity: rec.quantity,
+  remainingQty: rec.quantity,
+  location: rec.location,
+  description: "",
+  photoUrls: rec.photoUrls || (rec.photoUrl ? [rec.photoUrl] : []),  // ← FIXED
+  status: "available",
+  createdAt: new Date().toISOString(),
+  distance: rec.distance,
+}));
 
 
   const initialCount: number = isMobile ? 2 : 3;
@@ -523,9 +523,9 @@ export default function BuyerDashboard() {
                   borderRadius: 12,
                 }}
               >
-                {showRequestModal.listing.photoUrl ? (
+                {showRequestModal.listing.photoUrls ? (
                   <img
-                    src={showRequestModal.listing.photoUrl}
+                    src={showRequestModal.listing.photoUrls[0]}
                     alt=""
                     style={{
                       width: 60,
