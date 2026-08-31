@@ -3,16 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import { RiLeafFill } from 'react-icons/ri'
 import {
   BsArrowRight, BsEye, BsEyeSlash,
-  BsPhone, BsLockFill, BsExclamationCircle,
+  BsEnvelope, BsLockFill, BsExclamationCircle,
 } from 'react-icons/bs'
 import { authService, getContentImages } from '../../services/authService'
 import type { UserRole } from '../../types/auth'
 import styles from '../../styles/auth.module.css'
 
-// ── Phone number validation ───────────────────────────────
-function isValidPhone(phone: string): boolean {
-  const digits = phone.replace(/\s+/g, '')
-  return /^(\+234|0)[789]\d{9}$/.test(digits)
+// ── Identifier validation (email or phone) ───────────────
+function isValidIdentifier(value: string): boolean {
+  const isEmail = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(value)
+  const isPhone = /^(\+234|0)[789]\d{9}$/.test(value.replace(/\s+/g, ''))
+  return isEmail || isPhone
 }
 
 // ── User-friendly error messages ──────────────────────────
@@ -34,7 +35,7 @@ function getUserFriendlyError(error: unknown): string {
 export default function Login() {
   const navigate = useNavigate()
 
-  const [phone, setPhone]         = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword]   = useState('')
   const [showPwd, setShowPwd]     = useState(false)
   const [loading, setLoading]     = useState(false)
@@ -54,11 +55,11 @@ export default function Login() {
   const validate = () => {
     const e: Record<string, string> = {}
 
-    // Phone
-    if (!phone.trim()) {
-      e.phone = 'Phone number is required'
-    } else if (!isValidPhone(phone.trim())) {
-      e.phone = 'Enter a valid Nigerian phone number (e.g. 08012345678)'
+    // Identifier (email or phone)
+    if (!identifier.trim()) {
+      e.identifier = 'Email or phone number is required'
+    } else if (!isValidIdentifier(identifier.trim())) {
+      e.identifier = 'Enter a valid email or Nigerian phone number (e.g. 08012345678)'
     }
 
     // Password
@@ -80,7 +81,7 @@ export default function Login() {
     setLoading(true)
 
     try {
-      const res = await authService.login({ phone, password })
+      const res = await authService.login({ identifier, password })
       authService.saveSession(res)
 
       const role: UserRole = res.user.role as UserRole
@@ -240,21 +241,21 @@ export default function Login() {
               <div className={styles.fields}>
 
                 <div className={styles.fieldGroup}>
-                  <label className={styles.fieldLabel}>Phone Number</label>
+                  <label className={styles.fieldLabel}>Email or Phone Number</label>
                   <div className={styles.fieldInputWrap}>
                     <span className={styles.fieldInputIcon}>
-                      <BsPhone size={14} />
+                      <BsEnvelope size={14} />
                     </span>
                     <input
-                      className={`${styles.fieldInput} ${errors['phone'] ? styles.fieldError : ''}`}
-                      type="tel"
-                      placeholder="08012345678"
-                      value={phone}
-                      onChange={e => setPhone(e.target.value)}
-                      autoComplete="tel"
+                      className={`${styles.fieldInput} ${errors['identifier'] ? styles.fieldError : ''}`}
+                      type="text"
+                      placeholder="08012345678 or you@example.com"
+                      value={identifier}
+                      onChange={e => setIdentifier(e.target.value)}
+                      autoComplete="username"
                     />
                   </div>
-                  {err('phone')}
+                  {err('identifier')}
                 </div>
 
                 <div className={styles.fieldGroup}>

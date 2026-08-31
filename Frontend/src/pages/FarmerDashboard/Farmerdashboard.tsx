@@ -32,6 +32,7 @@ import type { VoiceRecorderHandle } from "../../components/VoiceRecorder/VoiceRe
 import { VoiceWave } from "../../components/VoiceWave/VoiceWave";
 import { useTTS } from "../../hooks/useTTS";
 import { apiFetch } from "../../services/marketService";
+import { BASE_URL } from "../../services/apiConfig";
 
 // ──Onboarding ────────────────────────────────
 import {
@@ -63,8 +64,6 @@ interface ChatSession {
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
-
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
 async function fetchAIResponse(message: string): Promise<string> {
   const token = authService.getToken();

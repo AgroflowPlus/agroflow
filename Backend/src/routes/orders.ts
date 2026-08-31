@@ -14,6 +14,87 @@ const router = Router()
 const getParam = (param: string | string[] | undefined): string =>
   Array.isArray(param) ? param[0] : param || ''
 
+// ── Rider detail validation ───────────────────────────────
+const RIDER_NAME_MAX = 80
+const RIDER_PHONE_MAX = 20
+
+// Accepts Nigerian formats: 08012345678, 8012345678, +2348012345678
+function normalizeRiderPhone(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const digits = raw.replace(/[\s()-]/g, '')
+  if (!/^\+?\d{10,15}$/.test(digits)) return null
+  return digits.slice(0, RIDER_PHONE_MAX)
+}
+
+function normalizeRiderName(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const trimmed = raw.trim()
+  // A whitespace-only string is truthy, so `!riderName` was not enough.
+  if (trimmed.length < 2) return null
+  return trimmed.slice(0, RIDER_NAME_MAX)
+}
+
+// ── Recompute a listing's status from its remaining quantity ──────────
+// Previously the cancel path collapsed this to available/sold, which
+// wrongly marked a partially-sold listing as fully available.
+function listingStatusFor(remainingQty: number, totalQty: number) {
+  if (remainingQty <= 0) return 'sold' as const
+  if (remainingQty < totalQty) return 'partial' as const
+  return 'available' as const
+}
+
+// ── Return the quantity on a cancelled order back to its listing ──────
+async function restoreListingQuantity(listingId: string | undefined, quantity: number) {
+  if (!listingId || quantity <= 0) return
+
+  // Read-then-write meant two cancellations landing together both read the
+  // same `remainingQty` and wrote the same result, so one restore was lost and
+  // that stock became unsellable. Increment atomically, then clamp.
+  await prisma.$transaction(async (tx) => {
+    const exists = await tx.listing.findUnique({
+      where:  { id: listingId },
+      select: { id: true },
+    })
+    if (!exists) return
+
+    await tx.listing.update({
+      where: { id: listingId },
+      data:  { remainingQty: { increment: quantity } },
+    })
+
+    const fresh = await tx.listing.findUnique({ where: { id: listingId } })
+    if (!fresh) return
+
+    // Never restore past the original quantity.
+    const newQty = Math.min(fresh.quantity, fresh.remainingQty)
+
+    await tx.listing.update({
+      where: { id: fresh.id },
+      data: {
+        remainingQty: newQty,
+        status: listingStatusFor(newQty, fresh.quantity),
+      },
+    })
+  })
+}
+
+// ── statusHistory is a Json column, but older rows were written with
+//    JSON.stringify, so they hold a *string* containing JSON. Reads must
+//    tolerate both shapes (and malformed data) rather than throwing
+//    mid-request. New writes pass the array natively. ───────────────────
+type StatusHistoryEntry = { status: string; timestamp: string; note?: string }
+
+function parseStatusHistory(raw: unknown): StatusHistoryEntry[] {
+  if (Array.isArray(raw)) return raw as StatusHistoryEntry[]
+  if (typeof raw !== 'string') return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 // ── CREATE ORDER FROM MATCH ──────────────────────────────────
 export async function createOrderFromMatch(
   matchId: string, 
@@ -31,34 +112,35 @@ export async function createOrderFromMatch(
   // ── Create order ────────────────────────────────────────────
   const order = await prisma.order.create({
     data: {
-      matchId, 
-      buyerId, 
+      matchId,
+      buyerId,
       sellerId,
       status: 'placed',
-      statusHistory: JSON.stringify([
+      // Json column — pass the array natively rather than stringifying it.
+      statusHistory: [
         { status: 'placed', timestamp: new Date().toISOString(), note: 'Order placed' }
-      ])
+      ] as any
     }
   })
 
   // ── Update listing remaining quantity ──────────────────────
-  const listing = await prisma.listing.findUnique({ 
-    where: { id: listingId } 
+  // Read-then-write let two concurrent orders both read the same
+  // `remainingQty` and each subtract from that stale value, overselling the
+  // listing. Decrement atomically, guarded so it cannot go negative.
+  const claimed = await prisma.listing.updateMany({
+    where: { id: listingId, remainingQty: { gte: quantity } },
+    data:  { remainingQty: { decrement: quantity } },
   })
-  
-  if (listing) {
-    const newQty = Math.max(0, listing.remainingQty - quantity)
-    const newStatus = newQty === 0 ? 'sold' : newQty < listing.quantity ? 'partial' : 'available'
-    
-    await prisma.listing.update({
-      where: { id: listingId },
-      data: {
-        remainingQty: newQty,
-        status: newStatus,
-      }
-    })
-    
-    console.log(`📦 Listing ${listingId} updated: remainingQty ${listing.remainingQty} → ${newQty}, status: ${newStatus}`)
+
+  if (claimed.count > 0) {
+    const listing = await prisma.listing.findUnique({ where: { id: listingId } })
+
+    if (listing) {
+      await prisma.listing.update({
+        where: { id: listingId },
+        data: { status: listingStatusFor(listing.remainingQty, listing.quantity) },
+      })
+    }
   }
 
   // ── NOTIFY ADMINS ABOUT NEW ORDER ──────────────────────────
@@ -123,6 +205,9 @@ router.get('/', protect, async (req: AuthRequest, res: Response) => {
             listing: true,
           },
         },
+        // The UI hides "Leave a Review" once a review exists, which never
+        // worked because the review was not being sent.
+        review: true,
         buyer: {
           include: {
             user: {
@@ -153,11 +238,13 @@ router.get('/', protect, async (req: AuthRequest, res: Response) => {
       },
     })
 
+    // Farmers hold both a buyer and a seller profile, so "am I the seller
+    // here?" has to be answered per order — the client cannot infer it from
+    // the account role alone.
     const formattedOrders = orders.map((order: any) => ({
       ...order,
-      statusHistory: typeof order.statusHistory === 'string' 
-        ? JSON.parse(order.statusHistory) 
-        : order.statusHistory,
+      statusHistory: parseStatusHistory(order.statusHistory),
+      viewerRole: seller && order.sellerId === seller.id ? 'seller' : 'buyer',
     }))
 
     res.json({ orders: formattedOrders })
@@ -189,6 +276,7 @@ router.get('/:orderId', protect, async (req: AuthRequest, res: Response) => {
             listing: true,
           },
         },
+        review: true,
         buyer: {
           include: {
             user: {
@@ -231,9 +319,8 @@ router.get('/:orderId', protect, async (req: AuthRequest, res: Response) => {
 
     const formattedOrder = {
       ...order,
-      statusHistory: typeof order.statusHistory === 'string' 
-        ? JSON.parse(order.statusHistory) 
-        : order.statusHistory,
+      statusHistory: parseStatusHistory(order.statusHistory),
+      viewerRole: isSeller ? 'seller' : 'buyer',
     }
 
     res.json({ order: formattedOrder })
@@ -269,11 +356,27 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
     }
 
     // ── VALIDATE RIDER INFO FOR TRANSPORT_ASSIGNED ──────────────
-    if (status === 'transport_assigned' && (!riderName || !riderPhone)) {
-      res.status(400).json({
-        error: 'Rider name and phone number are required to assign transport',
-      })
-      return
+    // Validate up front so a blank/garbage rider can't be persisted.
+    let cleanRiderName: string | null = null
+    let cleanRiderPhone: string | null = null
+
+    if (status === 'transport_assigned') {
+      cleanRiderName = normalizeRiderName(riderName)
+      cleanRiderPhone = normalizeRiderPhone(riderPhone)
+
+      if (!cleanRiderName) {
+        res.status(400).json({
+          error: "Please provide the rider's full name (at least 2 characters)",
+        })
+        return
+      }
+
+      if (!cleanRiderPhone) {
+        res.status(400).json({
+          error: "Please provide a valid rider phone number",
+        })
+        return
+      }
     }
 
     const buyer = await prisma.buyer.findUnique({
@@ -343,7 +446,13 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
     }
 
     if (isSeller) {
-      if (!validTransitions[currentStatus]?.includes(status) && status !== currentStatus) {
+      // Re-sending transport_assigned is allowed so a seller can correct
+      // rider details; every other same-status replay is rejected, since
+      // it just spammed status history and re-fired notifications.
+      const isRiderCorrection =
+        status === 'transport_assigned' && currentStatus === 'transport_assigned'
+
+      if (!validTransitions[currentStatus]?.includes(status) && !isRiderCorrection) {
         res.status(400).json({
           error: `Cannot transition from ${currentStatus} to ${status}`,
         })
@@ -355,6 +464,10 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
           res.status(400).json({
             error: 'Cannot cancel an order that has been delivered or completed',
           })
+          return
+        }
+        if (currentStatus === 'cancelled') {
+          res.status(400).json({ error: 'Order is already cancelled' })
           return
         }
       } else if (status === 'completed') {
@@ -372,14 +485,18 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       }
     }
 
-    let statusHistory: Array<{ status: string; timestamp: string; note?: string }> = []
-    try {
-      statusHistory = typeof order.statusHistory === 'string'
-        ? JSON.parse(order.statusHistory)
-        : order.statusHistory || []
-    } catch {
-      statusHistory = []
+    // ── Only the seller assigns transport ───────────────────────────────
+    // Buyers legitimately call this endpoint (to cancel/complete), and the
+    // rider fields used to be written from the body on ANY transition —
+    // so a buyer could overwrite the seller's rider details.
+    if (status === 'transport_assigned' && !isSeller) {
+      res.status(403).json({
+        error: 'Only the seller can assign a rider to this order',
+      })
+      return
     }
+
+    const statusHistory = parseStatusHistory(order.statusHistory)
 
     statusHistory.push({
       status,
@@ -387,15 +504,33 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       note: note || `Status updated to ${status}`,
     })
 
+    // ── Cancelling here must return stock, same as /cancel ──────────────
+    // This route accepted `cancelled` but never restored the listing
+    // quantity, so inventory silently vanished depending on which
+    // endpoint the client happened to call.
+    if (status === 'cancelled' && currentStatus !== 'cancelled') {
+      await restoreListingQuantity(
+        order.match?.listingId,
+        order.match?.quantity || 0,
+      )
+    }
+
     // ── UPDATE ORDER WITH RIDER INFO ──────────────────────────────
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: {
         status: status as any,
-        statusHistory: JSON.stringify(statusHistory),
+        // `statusHistory` is a Prisma `Json` column, so stringifying it here
+        // stored a *string* containing JSON rather than an array. Every reader
+        // then had to double-parse it. Pass the array through natively.
+        statusHistory: statusHistory as any,
         notes: note ? (order.notes ? `${order.notes}\n${note}` : note) : order.notes,
-        ...(riderName && { riderName }),
-        ...(riderPhone && { riderPhone }),
+        // Only written on the transport_assigned transition, by the seller.
+        ...(cleanRiderName ? { riderName: cleanRiderName } : {}),
+        ...(cleanRiderPhone ? { riderPhone: cleanRiderPhone } : {}),
+        // A cancelled order has no rider. Leaving the details behind meant the
+        // buyer's order card kept showing a courier who was never coming.
+        ...(status === 'cancelled' ? { riderName: null, riderPhone: null } : {}),
       },
       include: {
         match: {
@@ -430,23 +565,36 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
       },
     })
 
-    // ── NOTIFY BUYER/SELLER ABOUT ORDER STATUS UPDATE ──────────────────────────
+    // ── NOTIFY THE *OTHER* PARTY ABOUT THE ORDER STATUS UPDATE ─────────
+    // Notifications used to go to the buyer on every transition and to the
+    // seller on cancel, regardless of who acted — so a buyer who cancelled
+    // their own order was pushed a notice about their own click, and a seller
+    // who cancelled was told their order had been cancelled. Only notify the
+    // counterparty.
+    const actorRole: 'seller' | 'buyer' = isSeller ? 'seller' : 'buyer'
+
     try {
       const cropType = updatedOrder.match?.cropType || updatedOrder.match?.listing?.cropType || 'produce'
-      
-      // Notify buyer
-      if (updatedOrder?.buyer?.userId) {
-        console.log(`🔔 Notifying buyer ${updatedOrder.buyer.userId} about order ${updatedOrder.id} status: ${status}`)
+
+      // Seller acted → tell the buyer.
+      if (actorRole === 'seller' && updatedOrder?.buyer?.userId) {
         await notifyOrderStatusUpdate(
           [updatedOrder.buyer.userId],
           cropType,
           status,
-          updatedOrder.id
+          updatedOrder.id,
+          // Give the buyer the rider's details in the notification itself.
+          status === 'transport_assigned'
+            ? {
+                riderName: updatedOrder.riderName || undefined,
+                riderPhone: updatedOrder.riderPhone || undefined,
+              }
+            : undefined,
         )
       }
 
-      // Notify seller when order is completed or cancelled
-      if (updatedOrder?.seller?.userId) {
+      // Buyer acted → tell the seller.
+      if (actorRole === 'buyer' && updatedOrder?.seller?.userId) {
         if (status === 'cancelled') {
           const quantity = updatedOrder.match?.quantity || 0
           await notifyOrderCancelledToSeller(
@@ -454,7 +602,11 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
             cropType,
             quantity
           )
-        } else if (status === 'delivered') {
+        } else if (status === 'completed') {
+          // This fired on `delivered`, which is the *seller's* own transition —
+          // so the seller was told "the buyer has confirmed delivery" the
+          // moment they marked it delivered, and got nothing when the buyer
+          // actually confirmed. `completed` is the buyer's confirmation.
           await notifyDeliveryConfirmedToSeller(
             updatedOrder.seller.userId,
             cropType
@@ -467,9 +619,8 @@ router.patch('/:orderId/status', protect, async (req: AuthRequest, res: Response
 
     const formattedOrder = {
       ...updatedOrder,
-      statusHistory: typeof updatedOrder.statusHistory === 'string'
-        ? JSON.parse(updatedOrder.statusHistory)
-        : updatedOrder.statusHistory,
+      statusHistory: parseStatusHistory(updatedOrder.statusHistory),
+      viewerRole: isSeller ? 'seller' : 'buyer',
     }
 
     res.json({
@@ -555,34 +706,17 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
       return
     }
 
-    const listing = await prisma.listing.findUnique({
-      where: { id: order.match?.listingId }
-    })
+    // Restore stock through the shared helper. This used to call
+    // `findUnique({ where: { id: order.match?.listingId } })`, which throws
+    // when listingId is undefined, and set status to 'available' whenever
+    // any quantity remained — wiping the 'partial' state of a listing that
+    // still had other sales against it.
+    await restoreListingQuantity(
+      order.match?.listingId,
+      order.match?.quantity || 0,
+    )
 
-    if (listing) {
-      const restoredQty = order.match?.quantity || 0
-      const newQty = listing.remainingQty + restoredQty
-      const newStatus = newQty > 0 ? 'available' : 'sold'
-      
-      await prisma.listing.update({
-        where: { id: listing.id },
-        data: {
-          remainingQty: newQty,
-          status: newStatus,
-        }
-      })
-      
-      console.log(`📦 Listing ${listing.id} restored: remainingQty ${listing.remainingQty} → ${newQty}, status: ${newStatus}`)
-    }
-
-    let statusHistory: Array<{ status: string; timestamp: string; note?: string }> = []
-    try {
-      statusHistory = typeof order.statusHistory === 'string'
-        ? JSON.parse(order.statusHistory)
-        : order.statusHistory || []
-    } catch {
-      statusHistory = []
-    }
+    const statusHistory = parseStatusHistory(order.statusHistory)
 
     statusHistory.push({
       status: 'cancelled',
@@ -594,8 +728,13 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
       where: { id: orderId },
       data: {
         status: 'cancelled',
-        statusHistory: JSON.stringify(statusHistory),
+        // Native array — see the note in /status. `statusHistory` is a Json
+        // column, so stringifying stored JSON-inside-a-string.
+        statusHistory: statusHistory as any,
         notes: order.notes ? `${order.notes}\nCancelled: ${reason || 'No reason provided'}` : `Cancelled: ${reason || 'No reason provided'}`,
+        // No rider on a cancelled order.
+        riderName: null,
+        riderPhone: null,
       },
       include: {
         match: {
@@ -630,16 +769,28 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
       },
     })
 
-    // ── NOTIFY BUYER ABOUT ORDER CANCELLATION ────────────────────────────
+    // ── NOTIFY THE COUNTERPARTY ABOUT THE CANCELLATION ──────────────────
+    // Both sides used to be notified unconditionally, so whoever cancelled
+    // received a push telling them their own order had been cancelled.
     try {
-      if (updatedOrder?.buyer?.userId) {
-        const cropType = updatedOrder.match?.cropType || updatedOrder.match?.listing?.cropType || 'produce'
-        console.log(`🔔 Notifying buyer ${updatedOrder.buyer.userId} about order ${updatedOrder.id} cancellation`)
+      const cropType = updatedOrder.match?.cropType || updatedOrder.match?.listing?.cropType || 'produce'
+
+      if (isSeller && updatedOrder?.buyer?.userId) {
         await notifyOrderStatusUpdate(
           [updatedOrder.buyer.userId],
           cropType,
           'cancelled',
           updatedOrder.id
+        )
+      }
+
+      // The seller was never told about cancellations made through this
+      // route, even though /status already did so.
+      if (!isSeller && updatedOrder?.seller?.userId) {
+        await notifyOrderCancelledToSeller(
+          updatedOrder.seller.userId,
+          cropType,
+          updatedOrder.match?.quantity || 0
         )
       }
     } catch (notifyError) {
@@ -648,9 +799,8 @@ router.patch('/:orderId/cancel', protect, async (req: AuthRequest, res: Response
 
     const formattedOrder = {
       ...updatedOrder,
-      statusHistory: typeof updatedOrder.statusHistory === 'string'
-        ? JSON.parse(updatedOrder.statusHistory)
-        : updatedOrder.statusHistory,
+      statusHistory: parseStatusHistory(updatedOrder.statusHistory),
+      viewerRole: isSeller ? 'seller' : 'buyer',
     }
 
     res.json({

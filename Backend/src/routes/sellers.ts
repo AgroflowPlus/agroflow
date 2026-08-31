@@ -1,14 +1,33 @@
 import { Router, Response } from 'express'
+import multer from 'multer'
+import { v2 as cloudinary } from 'cloudinary'
 import prisma from '../db/index'
 import { protect, AuthRequest } from '../middleware/auth'
-import { 
+import { adminOnly } from '../middleware/adminOnly'
+import {
   notifyNewVerificationToAdmins,
   notifyVerificationApproved,
   notifyVerificationRejected,
-  getAllAdminUserIds 
 } from '../services/notificationService'
 
 const router = Router()
+
+// ── Cloudinary Configuration ──────────────────────────────────────────
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+})
+
+// ── Multer Configuration ─────────────────────────────────────────────
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true)
+    else cb(new Error('Only image files are allowed'))
+  },
+})
 
 // ── Helper to safely get param ────────────────────────────
 const getParam = (param: string | string[] | undefined): string =>
@@ -16,11 +35,8 @@ const getParam = (param: string | string[] | undefined): string =>
 
 // ── GET MY VERIFICATION STATUS ────────────────────────────
 router.get('/my/status', protect, async (req: AuthRequest, res: Response) => {
-  console.log('📋 GET /my/status called')
-  
   try {
     const userId = req.user!.id
-    console.log('👤 User ID:', userId)
 
     const seller = await prisma.seller.findUnique({
       where: { userId },
@@ -33,53 +49,75 @@ router.get('/my/status', protect, async (req: AuthRequest, res: Response) => {
       },
     })
 
-    if (!seller) {
-      console.log('⚠️ No seller found for user:', userId)
-      res.json({ verificationStatus: 'unverified' })
-      return
-    }
-
-    console.log('✅ Seller found:', seller.id, 'Status:', seller.verificationStatus)
-    res.json({ seller })
+    res.json({
+      verificationStatus: seller?.verificationStatus ?? 'unverified',
+      seller: seller ?? null,
+    })
   } catch (error) {
-    console.error('❌ Get verification status error:', error)
+    console.error('Get verification status error:', error)
     res.status(500).json({ error: 'Failed to get verification status' })
   }
 })
 
 // ── SUBMIT VERIFICATION (seller) ─────────────────────────
-router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
+router.post('/verify', protect, upload.single('selfie'), async (req: AuthRequest, res: Response) => {
   console.log('📋 POST /verify called')
-  console.log('📦 Body:', req.body)
-  
-  try {
-    const { selfieUrl, description, farmName, yearsExperience } = req.body
-    const userId = req.user!.id
-    console.log('👤 User ID:', userId)
 
-    if (!selfieUrl) {
-      console.log('⚠️ No selfie provided')
+  try {
+    const { description, farmName, yearsExperience } = req.body
+    const userId = req.user!.id
+
+    // ── Validate file exists ──────────────────────────────────────
+    if (!req.file) {
       res.status(400).json({ error: 'Selfie photo is required' })
       return
     }
 
-    // Build verification note with all the details
-    let verificationNote = '';
-    if (farmName) verificationNote += `Farm: ${farmName}. `;
-    if (yearsExperience) verificationNote += `Experience: ${yearsExperience} years. `;
-    if (description) verificationNote += `Description: ${description}`;
+    // ── Upload selfie to Cloudinary ──────────────────────────────
+    let selfieUrl: string
+    try {
+      const uploadResult = await new Promise<{ secure_url: string }>((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder:         'agroflow/selfies',
+            public_id:      `selfie_${userId}_${Date.now()}`,
+            transformation: [{ quality: 'auto', fetch_format: 'auto', width: 800, crop: 'limit' }],
+          },
+          (error, result) => {
+            if (error) reject(error)
+            else resolve(result as { secure_url: string })
+          }
+        )
+        uploadStream.end(req.file!.buffer)
+      })
+      selfieUrl = uploadResult.secure_url
+      console.log('✅ Selfie uploaded to Cloudinary:', selfieUrl)
+    } catch (uploadError) {
+      console.error('❌ Cloudinary upload error:', uploadError)
+      res.status(500).json({ error: 'Failed to upload selfie. Please try again.' })
+      return
+    }
 
-    console.log('📝 Verification note:', verificationNote)
+    // ── Build verification note ──────────────────────────────────
+    let verificationNote = ''
+    if (farmName) verificationNote += `Farm: ${farmName}. `
+    if (yearsExperience) verificationNote += `Experience: ${yearsExperience} years. `
+    if (description) verificationNote += `Description: ${description}`
 
-    // Check if seller profile exists
+    // ── Check if seller profile exists ──────────────────────────
     let seller = await prisma.seller.findUnique({
       where: { userId },
-      include: { user: true }
+      include: { user: true },
     })
-    console.log('🔍 Existing seller:', seller ? 'Found' : 'Not found')
 
+    // ── Check if already verified ──────────────────────────────
+    if (seller?.verificationStatus === 'verified') {
+      res.status(400).json({ error: 'Your account is already verified' })
+      return
+    }
+
+    // ── Create or update seller ──────────────────────────────────
     if (!seller) {
-      // Create seller profile if it doesn't exist
       seller = await prisma.seller.create({
         data: {
           userId,
@@ -87,11 +125,10 @@ router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
           selfieUrl,
           verificationNote: verificationNote || 'No additional info provided',
         },
-        include: { user: true }
+        include: { user: true },
       })
       console.log('✅ New seller created:', seller.id)
     } else {
-      // Update existing seller with verification request
       seller = await prisma.seller.update({
         where: { userId },
         data: {
@@ -99,31 +136,21 @@ router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
           selfieUrl,
           verificationNote: verificationNote || 'No additional info provided',
         },
-        include: { user: true }
+        include: { user: true },
       })
       console.log('✅ Seller updated:', seller.id)
     }
 
-    // ── DEBUG: Check admin users ──────────────────────────────────────
-    console.log('🔍 [PUSH DEBUG] Starting push notification process...');
+    // ── NOTIFY ADMINS ──────────────────────────────────────────
     try {
-      const adminIds = await getAllAdminUserIds();
-      console.log(`🔍 [PUSH DEBUG] Found ${adminIds.length} admin users`);
-      console.log(`🔍 [PUSH DEBUG] Admin IDs:`, adminIds);
-      
-      if (adminIds.length === 0) {
-        console.log('⚠️ [PUSH DEBUG] No admin users found! Push notification will not be sent.');
-      } else {
-        console.log(`🔍 [PUSH DEBUG] Sending verification notification to ${adminIds.length} admins...`);
-        await notifyNewVerificationToAdmins(
-          seller.user.name,
-          seller.user.email,
-          seller.id
-        )
-        console.log('✅ [PUSH DEBUG] Admin push notification sent successfully for verification')
-      }
+      await notifyNewVerificationToAdmins(
+        seller.user.name,
+        seller.user.email,
+        seller.id
+      )
+      console.log('🔔 Admin push notification sent for verification')
     } catch (notifyError) {
-      console.error('❌ [PUSH DEBUG] Failed to send admin notification:', notifyError)
+      console.error('Failed to notify admins of new verification:', notifyError)
     }
 
     res.json({
@@ -140,8 +167,8 @@ router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
   }
 })
 
-// ── GET ALL SELLERS ──────────────────────────────────────
-router.get('/', protect, async (req: AuthRequest, res: Response) => {
+// ── ADMIN: GET ALL SELLERS ───────────────────────────────
+router.get('/', protect, adminOnly, async (_req: AuthRequest, res: Response) => {
   try {
     const sellers = await prisma.seller.findMany({
       include: {
@@ -171,8 +198,8 @@ router.get('/', protect, async (req: AuthRequest, res: Response) => {
   }
 })
 
-// ── GET PENDING SELLERS ──────────────────────────────────
-router.get('/pending', protect, async (req: AuthRequest, res: Response) => {
+// ── ADMIN: GET PENDING SELLERS ───────────────────────────
+router.get('/pending', protect, adminOnly, async (_req: AuthRequest, res: Response) => {
   try {
     const sellers = await prisma.seller.findMany({
       where: {
@@ -198,8 +225,8 @@ router.get('/pending', protect, async (req: AuthRequest, res: Response) => {
   }
 })
 
-// ── GET SELLER BY ID ─────────────────────────────────────
-router.get('/:id', protect, async (req: AuthRequest, res: Response) => {
+// ── ADMIN: GET SELLER BY ID ──────────────────────────────
+router.get('/:id', protect, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
     const id = getParam(req.params.id)
     if (!id) {
@@ -234,7 +261,7 @@ router.get('/:id', protect, async (req: AuthRequest, res: Response) => {
 })
 
 // ── ADMIN: APPROVE SELLER ────────────────────────────────
-router.patch('/:id/approve', protect, async (req: AuthRequest, res: Response) => {
+router.patch('/:id/approve', protect, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
     const id = getParam(req.params.id)
     const { note } = req.body
@@ -244,14 +271,13 @@ router.patch('/:id/approve', protect, async (req: AuthRequest, res: Response) =>
       return
     }
 
-    // Check if user is admin
-    const admin = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-      select: { role: true },
+    const existing = await prisma.seller.findUnique({
+      where: { id },
+      select: { id: true, verificationStatus: true },
     })
 
-    if (admin?.role !== 'admin') {
-      res.status(403).json({ error: 'Only admins can approve sellers' })
+    if (!existing) {
+      res.status(404).json({ error: 'Seller not found' })
       return
     }
 
@@ -259,7 +285,7 @@ router.patch('/:id/approve', protect, async (req: AuthRequest, res: Response) =>
       where: { id },
       data: {
         verificationStatus: 'verified',
-        verificationNote: note || 'Approved',
+        verificationNote: typeof note === 'string' && note.trim() ? note.trim() : 'Approved',
       },
       include: {
         user: {
@@ -272,19 +298,13 @@ router.patch('/:id/approve', protect, async (req: AuthRequest, res: Response) =>
       },
     })
 
-    // ── DEBUG: Check if seller has push subscription ────────────────
-    console.log(`🔍 [PUSH DEBUG] Approving seller ${seller.id} (${seller.user.name})`);
-    try {
-      // Check if seller has subscriptions
-      const subs = await prisma.pushSubscription.findMany({
-        where: { userId: seller.user.id }
-      });
-      console.log(`🔍 [PUSH DEBUG] Seller has ${subs.length} push subscriptions`);
-      
-      await notifyVerificationApproved(seller.user.id, seller.user.name)
-      console.log(`✅ [PUSH DEBUG] Approval notification sent to ${seller.user.name}`)
-    } catch (notifyError) {
-      console.error('❌ [PUSH DEBUG] Failed to send approval notification:', notifyError)
+    if (existing.verificationStatus !== 'verified') {
+      try {
+        await notifyVerificationApproved(seller.user.id, seller.user.name)
+        console.log(`🔔 Approval notification sent to ${seller.user.name}`)
+      } catch (notifyError) {
+        console.error('Failed to send approval notification:', notifyError)
+      }
     }
 
     res.json({
@@ -298,7 +318,7 @@ router.patch('/:id/approve', protect, async (req: AuthRequest, res: Response) =>
 })
 
 // ── ADMIN: REJECT SELLER ─────────────────────────────────
-router.patch('/:id/reject', protect, async (req: AuthRequest, res: Response) => {
+router.patch('/:id/reject', protect, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
     const id = getParam(req.params.id)
     const { reason } = req.body
@@ -308,19 +328,20 @@ router.patch('/:id/reject', protect, async (req: AuthRequest, res: Response) => 
       return
     }
 
-    if (!reason) {
+    if (typeof reason !== 'string' || reason.trim() === '') {
       res.status(400).json({ error: 'Rejection reason is required' })
       return
     }
 
-    // Check if user is admin
-    const admin = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-      select: { role: true },
+    const cleanReason = reason.trim().slice(0, 500)
+
+    const existing = await prisma.seller.findUnique({
+      where: { id },
+      select: { id: true, verificationStatus: true },
     })
 
-    if (admin?.role !== 'admin') {
-      res.status(403).json({ error: 'Only admins can reject sellers' })
+    if (!existing) {
+      res.status(404).json({ error: 'Seller not found' })
       return
     }
 
@@ -328,7 +349,7 @@ router.patch('/:id/reject', protect, async (req: AuthRequest, res: Response) => 
       where: { id },
       data: {
         verificationStatus: 'rejected',
-        verificationNote: reason,
+        verificationNote: cleanReason,
       },
       include: {
         user: {
@@ -341,19 +362,13 @@ router.patch('/:id/reject', protect, async (req: AuthRequest, res: Response) => 
       },
     })
 
-    // ── DEBUG: Check if seller has push subscription ────────────────
-    console.log(`🔍 [PUSH DEBUG] Rejecting seller ${seller.id} (${seller.user.name})`);
-    try {
-      // Check if seller has subscriptions
-      const subs = await prisma.pushSubscription.findMany({
-        where: { userId: seller.user.id }
-      });
-      console.log(`🔍 [PUSH DEBUG] Seller has ${subs.length} push subscriptions`);
-      
-      await notifyVerificationRejected(seller.user.id, seller.user.name, reason)
-      console.log(`✅ [PUSH DEBUG] Rejection notification sent to ${seller.user.name}`)
-    } catch (notifyError) {
-      console.error('❌ [PUSH DEBUG] Failed to send rejection notification:', notifyError)
+    if (existing.verificationStatus !== 'rejected') {
+      try {
+        await notifyVerificationRejected(seller.user.id, seller.user.name, cleanReason)
+        console.log(`🔔 Rejection notification sent to ${seller.user.name}`)
+      } catch (notifyError) {
+        console.error('Failed to send rejection notification:', notifyError)
+      }
     }
 
     res.json({

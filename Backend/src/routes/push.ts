@@ -1,6 +1,7 @@
 import { Router, Response } from 'express'
 import prisma from '../db/index'
 import { protect, AuthRequest } from '../middleware/auth'
+import { sendNotificationToUser } from '../services/notificationService'
 
 const router = Router()
 
@@ -31,9 +32,23 @@ router.post('/subscribe', protect, async (req: AuthRequest, res: Response) => {
 router.post('/unsubscribe', protect, async (req: AuthRequest, res: Response) => {
   try {
     const { endpoint } = req.body
-    await prisma.pushSubscription.deleteMany({ where: { endpoint } })
+
+    // Prisma drops `undefined` filter fields, so `where: { endpoint: undefined }`
+    // collapses to `where: {}` — which deleted every push subscription on the
+    // platform for anyone who posted an empty body. Require the endpoint, and
+    // scope the delete to the caller so one user cannot unsubscribe another.
+    if (typeof endpoint !== 'string' || endpoint.trim() === '') {
+      res.status(400).json({ error: 'A subscription endpoint is required' })
+      return
+    }
+
+    await prisma.pushSubscription.deleteMany({
+      where: { endpoint, userId: req.user!.id },
+    })
+
     res.json({ success: true })
   } catch (err) {
+    console.error('Unsubscribe error:', err)
     res.status(500).json({ error: 'Failed to remove subscription' })
   }
 })
@@ -41,7 +56,6 @@ router.post('/unsubscribe', protect, async (req: AuthRequest, res: Response) => 
 // Test notification
 router.post('/test', protect, async (req: AuthRequest, res: Response) => {
   try {
-    const { sendNotificationToUser } = await import('.././services/notificationService.js')
     await sendNotificationToUser(req.user!.id, {
       title: '🌾 AgroFlow+ Notifications Active!',
       body:  'You will now receive updates on orders, matches and new listings.',
@@ -49,6 +63,7 @@ router.post('/test', protect, async (req: AuthRequest, res: Response) => {
     })
     res.json({ success: true })
   } catch (err) {
+    console.error('Test notification error:', err)
     res.status(500).json({ error: 'Failed to send test notification' })
   }
 })

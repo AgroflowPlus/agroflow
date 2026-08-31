@@ -11,8 +11,8 @@ export interface RegisterPayload {
 }
 
 export interface LoginPayload {
-  phone:    string
-  password: string
+  identifier: string
+  password:   string
 }
 
 export interface AuthResponse {

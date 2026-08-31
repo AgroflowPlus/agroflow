@@ -116,8 +116,11 @@ export default function Register() {
     const pwd = form.password;
     if (!pwd) {
       e.password = "Password is required";
-    } else if (pwd.length < 6) {
-      e.password = "Password must be at least 6 characters";
+    } else if (pwd.length < 8) {
+      // The API rejects anything under 8 (MIN_PASSWORD_LENGTH). Accepting 6
+      // here meant a 6- or 7-character password passed client validation and
+      // then failed at the server with a duplicate-looking error.
+      e.password = "Password must be at least 8 characters";
     } else if (!/[0-9]/.test(pwd)) {
       e.password = "Password must include at least one number";
     }
@@ -131,19 +134,14 @@ export default function Register() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    console.log('🔥 Submit fired, step:', step, { fullName: form.fullName, email: form.email, password: form.password, role: tab, phone: form.phone, location: form.location });
     e.preventDefault();
     setApiError("");
-    
-    console.log('📝 Step 1: Validating form...');
+
     if (!validate()) {
-      console.log('❌ Validation failed:', errors);
       return;
     }
-    console.log('✅ Validation passed');
-    
+
     setLoading(true);
-    console.log('⏳ Loading started');
 
     try {
       const role = tab;
@@ -155,47 +153,30 @@ export default function Register() {
         role,
         location: form.location,
       };
-      
-      console.log('📤 Sending registration request:', { 
-        email: payload.email, 
-        role: payload.role,
-        location: payload.location 
-      });
-      
+
       const res = await authService.register(payload);
-      
-      console.log('✅ Registration successful:', { 
-        email: res.user.email, 
-        role: res.user.role,
-        id: res.user.id 
-      });
-      
+
       authService.saveSession(res);
       const userRole = res.user.role as UserRole;
 
       // Redirect based on role with replace: true
       if (userRole === "farmer") {
-        console.log('🚀 Redirecting to /farmer/dashboard');
         navigate("/farmer/dashboard", { replace: true });
       } else if (userRole === "buyer") {
-        console.log('🚀 Redirecting to /buyer/dashboard');
         navigate("/buyer/dashboard", { replace: true });
       } else if (userRole === "seller") {
-        console.log('🚀 Redirecting to /seller/dashboard');
         navigate("/seller/dashboard", { replace: true });
       } else {
-        console.log('🚀 Redirecting to /farmer/dashboard (fallback)');
         navigate("/farmer/dashboard", { replace: true });
       }
     } catch (err: unknown) {
-      console.error('❌ Registration error:', err);
+      console.error('Registration error:', err);
       setApiError(
         err instanceof Error
           ? err.message
           : "Registration failed. Please try again.",
       );
     } finally {
-      console.log('🏁 Registration process complete');
       setLoading(false);
     }
   };

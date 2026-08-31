@@ -3,9 +3,7 @@ import type {
   LoginPayload,
   AuthResponse,
 } from "../types/auth";
-
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
-const MOCK_MODE = false;
+import { BASE_URL } from "./apiConfig";
 
 // ── "Just logged in" flag key ──────────────────────────────────────────────
 const JUST_LOGGED_IN_KEY = "agf_just_logged_in";
@@ -30,24 +28,37 @@ async function request<T>(endpoint: string, options: RequestInit): Promise<T> {
     return data as T;
   } catch (error: any) {
     clearTimeout(timeout);
-    
+
     // Handle timeout
-    if (error.name === 'AbortError') {
-      throw new Error('Something went wrong. Please try again.');
+    if (error.name === "AbortError") {
+      throw new Error("Something went wrong. Please try again.");
     }
-    
+
     // Handle network errors
-    if (!navigator.onLine || error.message === 'Failed to fetch' || error.message === 'NetworkError') {
-      throw new Error('No internet connection. Please check your network and try again.');
+    if (
+      !navigator.onLine ||
+      error.message === "Failed to fetch" ||
+      error.message === "NetworkError"
+    ) {
+      throw new Error(
+        "No internet connection. Please check your network and try again.",
+      );
     }
-    
+
     // Re-throw the error if it's already a user-friendly message
-    if (error.message && !error.message.includes('fetch')) {
+    if (error.message && !error.message.includes("fetch")) {
       throw error;
     }
-    
-    throw new Error('Something went wrong. Please try again.');
+
+    throw new Error("Something went wrong. Please try again.");
   }
+}
+
+function clearStoredSession() {
+  localStorage.removeItem("agf_token");
+  localStorage.removeItem("agf_user");
+  localStorage.removeItem("agf_session_time");
+  sessionStorage.removeItem(JUST_LOGGED_IN_KEY);
 }
 
 /* ── Auth Service ──────────────────────────────────────── */
@@ -65,11 +76,11 @@ export const authService = {
     });
   },
 
-login: async (payload: LoginPayload): Promise<AuthResponse> => {
+  login: async (payload: LoginPayload): Promise<AuthResponse> => {
   return request<AuthResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify({
-      phone: payload.phone,
+      identifier: payload.identifier,
       password: payload.password,
     }),
   });
@@ -104,12 +115,18 @@ login: async (payload: LoginPayload): Promise<AuthResponse> => {
     const token = localStorage.getItem("agf_token");
     const savedTime = localStorage.getItem("agf_session_time");
     if (!token || !savedTime) return false;
-    const elapsed = Date.now() - parseInt(savedTime);
-    if (elapsed > SESSION_DURATION_MS) {
+
+    const started = parseInt(savedTime, 10);
+    // A non-numeric timestamp made `elapsed` NaN, and `NaN > duration` is
+    // false — so a corrupt value was treated as a valid session forever.
+    if (!Number.isFinite(started)) {
+      clearStoredSession();
+      return false;
+    }
+
+    if (Date.now() - started > SESSION_DURATION_MS) {
       // Expired — clear everything
-      localStorage.removeItem("agf_token");
-      localStorage.removeItem("agf_user");
-      localStorage.removeItem("agf_session_time");
+      clearStoredSession();
       return false;
     }
     return true;
@@ -119,7 +136,16 @@ login: async (payload: LoginPayload): Promise<AuthResponse> => {
 
   getUser: () => {
     const raw = localStorage.getItem("agf_user");
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      // Corrupted storage used to throw here and break the whole app on boot,
+      // with no way for the user to recover except clearing site data.
+      console.error("Stored user data was unreadable — clearing it");
+      localStorage.removeItem("agf_user");
+      return null;
+    }
   },
 
   setUser: (user: any) => {
@@ -127,17 +153,12 @@ login: async (payload: LoginPayload): Promise<AuthResponse> => {
   },
 
   clearSession: () => {
-    localStorage.removeItem("agf_token");
-    localStorage.removeItem("agf_user");
-    localStorage.removeItem("agf_session_time");
-    sessionStorage.removeItem(JUST_LOGGED_IN_KEY);
+    clearStoredSession();
   },
 
   isLoggedIn: (): boolean => {
     return !!localStorage.getItem("agf_token");
   },
-
-  isMockMode: () => MOCK_MODE,
 };
 
 /* ── Content images from backend ───────────────────────── */

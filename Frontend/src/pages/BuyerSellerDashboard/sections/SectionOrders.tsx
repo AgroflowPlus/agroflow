@@ -68,6 +68,31 @@ const BUYER_ACTIONS: Record<string, string> = {
   delivered: 'completed',
 };
 
+// statusHistory arrives from the API as an array, but rows written before the
+// Json column was used correctly still come back as a JSON string. A bare
+// JSON.parse in render meant one malformed row white-screened the dashboard.
+function parseHistory(raw: unknown): Array<{ status: string; timestamp: string; note?: string }> {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string') return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+// Strip the formatting characters a person naturally types so "0801 234 5678"
+// and "08012345678" are treated as the same number.
+function normalizePhone(value: string): string {
+  return value.replace(/[\s()-]/g, '');
+}
+
+// Matches what the API accepts: 08012345678, 8012345678, +2348012345678
+function isValidPhone(value: string): boolean {
+  return /^\+?\d{10,15}$/.test(normalizePhone(value));
+}
+
 interface Props {
   orders:   any[];
   role:     'seller' | 'buyer';
@@ -89,10 +114,23 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
   const [riderPhoneConfirm, setRiderPhoneConfirm] = useState('');
   const [riderSubmitting, setRiderSubmitting] = useState(false);
 
+  // Compare normalized digits, not raw text — the two fields are the same
+  // number typed twice, so "0801 234 5678" must match "08012345678" instead of
+  // reporting a mismatch the seller cannot see.
+  const riderPhoneMismatch =
+    riderPhoneConfirm.trim() !== '' &&
+    normalizePhone(riderPhone.trim()) !== normalizePhone(riderPhoneConfirm.trim());
+
   const advance = async (orderId: string, newStatus: string) => {
     // ── Intercept transport_assigned to show rider modal ──────────────
     if (newStatus === 'transport_assigned') {
       const order = orders.find(o => o.id === orderId);
+      // Without this guard a stale list silently did nothing on click.
+      if (!order) {
+        addToast('That order is no longer available. Refreshing…', 'error');
+        onUpdate();
+        return;
+      }
       setRiderModalOrder(order);
       return;
     }
@@ -101,7 +139,7 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
     try {
       const result = await marketService.updateOrderStatus(orderId, newStatus);
       if (result.success) {
-        addToast(`Order updated to: ${STATUS_LABELS[newStatus].label}`, 'success');
+        addToast(`Order updated to: ${STATUS_LABELS[newStatus]?.label || newStatus}`, 'success');
         onUpdate();
       } else {
         addToast(result.error || 'Failed to update order', 'error');
@@ -118,15 +156,25 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
   const submitRiderAssignment = async () => {
     if (!riderModalOrder) return;
 
-    if (!riderName.trim()) {
-      addToast('Please enter the rider\'s name', 'error');
+    const cleanName = riderName.trim();
+    const cleanPhone = riderPhone.trim();
+    const cleanConfirm = riderPhoneConfirm.trim();
+
+    if (cleanName.length < 2) {
+      addToast('Please enter the rider\'s full name', 'error');
       return;
     }
-    if (!riderPhone.trim()) {
+    if (!cleanPhone) {
       addToast('Please enter the rider\'s phone number', 'error');
       return;
     }
-    if (riderPhone.trim() !== riderPhoneConfirm.trim()) {
+    // Catch a bad number here instead of round-tripping to the API — this
+    // number is the buyer's only way to reach the rider.
+    if (!isValidPhone(cleanPhone)) {
+      addToast('Please enter a valid phone number, e.g. 08012345678', 'error');
+      return;
+    }
+    if (normalizePhone(cleanPhone) !== normalizePhone(cleanConfirm)) {
       addToast('Phone numbers do not match. Please check and try again.', 'error');
       return;
     }
@@ -137,8 +185,10 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
         riderModalOrder.id,
         'transport_assigned',
         undefined,
-        riderName.trim(),
-        riderPhone.trim()
+        cleanName,
+        // Send the normalized number so the stored value is what the buyer can
+        // actually dial, regardless of how the seller spaced it out.
+        normalizePhone(cleanPhone)
       );
       if (result.success) {
         addToast('Rider assigned successfully!', 'success');
@@ -187,7 +237,11 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
           <RiBox3Line size={48} />
         </div>
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>No orders yet</div>
-        <div style={{ fontSize: 13 }}>Orders will appear here when buyers purchase your produce</div>
+        <div style={{ fontSize: 13 }}>
+          {role === 'seller'
+            ? 'Orders will appear here when buyers purchase your produce'
+            : 'Orders will appear here once you buy produce from a seller'}
+        </div>
       </div>
     );
   }
@@ -200,13 +254,26 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
 
       {orders.map(order => {
         const currentStep = STATUS_STEPS.indexOf(order.status);
-        const history = typeof order.statusHistory === 'string'
-          ? JSON.parse(order.statusHistory)
-          : order.statusHistory || [];
+        const history = parseHistory(order.statusHistory);
 
-        const nextStatus = role === 'seller'
+        // A farmer holds both a buyer and a seller profile, so the account-level
+        // `role` prop is wrong for orders where they are the other party. The
+        // API now says which side the viewer is on for each order.
+        const viewerRole: 'seller' | 'buyer' = order.viewerRole === 'seller'
+          ? 'seller'
+          : order.viewerRole === 'buyer'
+            ? 'buyer'
+            : role;
+
+        const nextStatus = viewerRole === 'seller'
           ? SELLER_ACTIONS[order.status]
           : BUYER_ACTIONS[order.status];
+
+        // Buyer/seller are included at the order level, not inside `match`,
+        // so the old `order.match?.seller?.user?.name` path always fell
+        // through to the placeholder.
+        const sellerName = order.seller?.user?.name || order.match?.seller?.user?.name || 'Seller';
+        const buyerName = order.buyer?.user?.name || order.match?.buyer?.user?.name || 'Buyer';
 
         const statusInfo = STATUS_LABELS[order.status] || { label: order.status, icon: null };
         const isProcessing = processingId === order.id;
@@ -228,7 +295,7 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
                   {order.match?.cropType} — {order.match?.quantity}kg
                 </div>
                 <div style={{ fontSize: 12, color: '#9ead9f', marginTop: 2 }}>
-                  Order #{order.id.slice(-6).toUpperCase()}
+                  Order #{String(order.id || '').slice(-6).toUpperCase()}
                 </div>
               </div>
               <span style={{
@@ -249,10 +316,12 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
 
             {/* Parties */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 12, color: '#6b7f6e' }}>
-              <span><RiStore3Line size={12} style={{ verticalAlign: 'middle' }} /> {order.match?.seller?.user?.name || 'Seller'}</span>
+              <span><RiStore3Line size={12} style={{ verticalAlign: 'middle' }} /> {sellerName}</span>
               <RiArrowRightLine size={12} style={{ color: '#c8d4c2' }} />
-              <span><RiShoppingBagLine size={12} style={{ verticalAlign: 'middle' }} /> {order.match?.buyer?.user?.name || 'Buyer'}</span>
-              <span style={{ color: '#c8d4c2' }}>· {order.match?.distance}km</span>
+              <span><RiShoppingBagLine size={12} style={{ verticalAlign: 'middle' }} /> {buyerName}</span>
+              {order.match?.distance != null && (
+                <span style={{ color: '#c8d4c2' }}>· {order.match.distance}km</span>
+              )}
             </div>
 
             {/* ── RIDER INFO BLOCK ────────────────────────────────────────── */}
@@ -305,21 +374,24 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
                 ))}
               </div>
               <div style={{ fontSize: 11, color: '#9ead9f' }}>
-                Step {currentStep + 1} of {STATUS_STEPS.length}
+                {currentStep >= 0
+                  ? `Step ${currentStep + 1} of ${STATUS_STEPS.length}`
+                  : statusInfo.label}
               </div>
             </div>
 
             {/* Status history */}
             <div style={{ marginBottom: 16 }}>
               {history.slice(-3).map((h: any, i: number) => {
-                const hStatusInfo = STATUS_LABELS[h.status] || { label: h.status, icon: null };
+                const hStatusInfo = STATUS_LABELS[h?.status] || { label: h?.status || 'Updated', icon: null };
+                const stamp = h?.timestamp ? new Date(h.timestamp) : null;
                 return (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6b7f6e', marginBottom: 4 }}>
                     <span style={{ color: '#a8d832' }}><RiCheckLine size={12} /></span>
                     <span>{hStatusInfo.icon}</span>
                     <span>{hStatusInfo.label}</span>
                     <span style={{ color: '#c8d4c2', marginLeft: 'auto' }}>
-                      {new Date(h.timestamp).toLocaleDateString()}
+                      {stamp && !isNaN(stamp.getTime()) ? stamp.toLocaleDateString() : ''}
                     </span>
                   </div>
                 );
@@ -360,7 +432,7 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
                 </div>
                 
                 {/* Review Button - Only show for buyers if no review exists */}
-                {role === 'buyer' && !order.review && (
+                {viewerRole === 'buyer' && !order.review && (
                   <button
                     onClick={() => setReviewingOrder(order)}
                     style={{
@@ -471,14 +543,14 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
                   width: '100%',
                   padding: '10px 12px',
                   borderRadius: 10,
-                  border: `1.5px solid ${riderPhoneConfirm && riderPhoneConfirm !== riderPhone ? '#e05252' : '#eaeee8'}`,
+                  border: `1.5px solid ${riderPhoneMismatch ? '#e05252' : '#eaeee8'}`,
                   fontSize: 14,
                   boxSizing: 'border-box',
                   outline: 'none',
                   fontFamily: 'inherit',
                 }}
               />
-              {riderPhoneConfirm && riderPhoneConfirm !== riderPhone && (
+              {riderPhoneMismatch && (
                 <div style={{ fontSize: 11, color: '#e05252', marginTop: 4, fontWeight: 600 }}>
                   Phone numbers do not match
                 </div>
@@ -487,6 +559,7 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button
+                disabled={riderSubmitting}
                 onClick={() => {
                   setRiderModalOrder(null);
                   setRiderName('');
@@ -599,8 +672,9 @@ export function SectionOrders({ orders, role, onUpdate }: Props) {
               }}
             />
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>  
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               <button
+                disabled={submitting}
                 onClick={() => {
                   setReviewingOrder(null);
                   setRating(5);

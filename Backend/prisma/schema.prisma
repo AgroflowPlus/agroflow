@@ -106,7 +106,7 @@ model Listing {
   remainingQty Int
   location     String
   description  String
-  photoUrl     String?
+  photoUrls    String[]         @default([])  // ── NEW: Multiple photo URLs
   status       ListingStatus    @default(available)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
@@ -179,8 +179,8 @@ model Order {
   status          OrderStatus @default(placed)
   statusHistory   Json        @default("[]")
   notes           String?
-  riderName       String?     // ── NEW: Rider's name assigned to this order
-  riderPhone      String?     // ── NEW: Rider's phone number
+  riderName       String?     // Rider's name assigned to this order
+  riderPhone      String?     // Rider's phone number
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @default(now()) @updatedAt
   sellerConfirmed Boolean     @default(false)
@@ -262,7 +262,7 @@ model ChatMessage {
   session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }
 
-// ── KNOWLEDGE BASE ─────────
+// ── KNOWLEDGE BASE ──────────────────────────────────────────────────────────
 model knowledge_base {
   id             BigInt                   @id @default(autoincrement())
   content        String

@@ -11,6 +11,7 @@ import { ToastContainer }   from './components/Toast/Toast'
 import { ToastProvider }    from './context/ToastContext'
 import { PWAInstallBanner } from './components/PWAInstallBanner/PWAInstallBanner'
 import { authService }      from './services/authService'
+import { BASE_URL }         from './services/apiConfig'
 
 // ── KEEP RENDER BACKEND ALIVE ──────────────────────────────────────
 // This component pings the backend every 12 minutes to prevent Render cold starts
@@ -18,10 +19,9 @@ function KeepAlive() {
   useEffect(() => {
     // Only run in production
     if (import.meta.env.PROD) {
-      const BACKEND_URL = import.meta.env.VITE_API_URL || 'https://ai-farmer-platform-backend-code.onrender.com/api';
-      const healthUrl = BACKEND_URL.replace('/api', '/health');
-      
-      console.log('🏓 Frontend keep-alive service started');
+      // `.replace('/api', ...)` swapped the first match anywhere in the string,
+      // so a host containing "/api" would have produced a broken health URL.
+      const healthUrl = BASE_URL.replace(/\/api\/?$/, '') + '/health';
 
       // Initial ping after 10 seconds
       const initialPing = setTimeout(async () => {

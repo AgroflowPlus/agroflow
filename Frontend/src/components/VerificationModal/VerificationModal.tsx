@@ -33,7 +33,8 @@ export function VerificationModal({
   const [step, setStep] = useState<
     "prompt" | "form" | "submitted" | "rejected"
   >("prompt");
-  const [selfie, setSelfie] = useState<string>("");
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+  const [selfiePreview, setSelfiePreview] = useState<string>("");
   const [farmName, setFarmName] = useState<string>("");
   const [yearsExperience, setYearsExperience] = useState<string>("");
   const [description, setDescription] = useState("");
@@ -92,16 +93,15 @@ export function VerificationModal({
       return;
     }
 
+    setSelfieFile(file);
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setSelfie(reader.result as string);
-    };
+    reader.onloadend = () => setSelfiePreview(reader.result as string);
     reader.readAsDataURL(file);
   };
 
-  // ── Updated handleSubmit with validation ──────────────────────────
+  // ── Updated handleSubmit with File object ──────────────────────────
   const handleSubmit = async () => {
-    if (!selfie) {
+    if (!selfieFile) {
       addToast("Please upload a selfie photo", "error");
       return;
     }
@@ -117,7 +117,7 @@ export function VerificationModal({
     setLoading(true);
     try {
       const result = await sellerService.submitVerification(
-        selfie,
+        selfieFile,
         description,
         farmName,
         yearsExperience,
@@ -146,7 +146,8 @@ export function VerificationModal({
 
   const handleResubmit = () => {
     setStep("form");
-    setSelfie("");
+    setSelfieFile(null);
+    setSelfiePreview("");
     setFarmName("");
     setYearsExperience("");
     setDescription("");
@@ -220,15 +221,16 @@ export function VerificationModal({
               className={styles.uploadArea}
               onClick={() => fileInputRef.current?.click()}
             >
-              {selfie ? (
+              {selfiePreview ? (
                 <div className={styles.selfiePreview}>
-                  <img src={selfie} alt="Selfie" />
+                  <img src={selfiePreview} alt="Selfie" />
                   <button
                     type="button"
                     className={styles.removePhoto}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelfie("");
+                      setSelfieFile(null);
+                      setSelfiePreview("");
                     }}
                   >
                     ✕
@@ -334,7 +336,7 @@ export function VerificationModal({
     );
   }
 
-  // ── SUBMITTED STEP ─────────────────────────────────────────────
+  // ── SUBMITTED STEP ─────────────────────────────────────────────────────
   if (step === "submitted") {
     return (
       <div className={styles.overlay} onClick={onClose}>
@@ -378,7 +380,7 @@ export function VerificationModal({
     );
   }
 
-  // ── REJECTED STEP ───────────────────────
+  // ── REJECTED STEP ─────────────────────────────────────────────────────
   if (step === "rejected" && status) {
     return (
       <div className={styles.overlay} onClick={onClose}>

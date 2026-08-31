@@ -24,17 +24,45 @@ if (process.env.NODE_ENV !== "production") {
   dotenv.config();
 }
 
+// ── Fail fast on missing critical config ───────────────────────────
+// Without this the server booted happily and then rejected every single
+// login with a confusing "invalid token" error instead of telling anyone
+// the secret was never set.
+const REQUIRED_ENV = ["JWT_SECRET", "DATABASE_URL"] as const;
+const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key]);
+
+if (missingEnv.length > 0) {
+  console.error(
+    `❌ Missing required environment variables: ${missingEnv.join(", ")}`,
+  );
+  process.exit(1);
+}
+
+const isProduction = process.env.NODE_ENV === "production";
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ── CORS: Allow specific origins from environment ──────────────────
+// Entries are trimmed because "a.com, b.com" (with a space after the comma)
+// silently failed to match the second origin.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+// localhost is only trusted outside production. Set ALLOW_LOCALHOST_CORS=true
+// if you need to point a local frontend at the deployed API.
+const allowLocalhost = !isProduction || process.env.ALLOW_LOCALHOST_CORS === "true";
+
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (origin.startsWith("http://localhost:")) return callback(null, true);
-      const allowed = (process.env.ALLOWED_ORIGINS || "").split(",");
-      if (allowed.includes(origin)) return callback(null, true);
+      if (allowLocalhost && /^http:\/\/localhost:\d+$/.test(origin)) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.includes(origin)) return callback(null, true);
       callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
@@ -78,9 +106,12 @@ app.use(
     _next: express.NextFunction,
   ) => {
     console.error(err.stack);
-    res
-      .status(500)
-      .json({ error: "Something went wrong", message: err.message });
+    // Internal messages (stack traces, DB errors, driver details) must not
+    // reach the client in production.
+    res.status(500).json({
+      error: "Something went wrong",
+      ...(isProduction ? {} : { message: err.message }),
+    });
   },
 );
 
@@ -95,20 +126,23 @@ prisma
   .catch((e) => console.error("❌ Database connection failed:", e.message));
 
 // ── Global Error Handlers ──────────────────────────────────
+// An uncaught exception leaves the process in an undefined state, so log it
+// and let the platform restart us. Swallowing it (plus `process.stdin.resume()`
+// to force the process to stay alive) kept a half-broken server serving
+// traffic, which is much harder to diagnose than a clean restart.
 process.on("uncaughtException", (err) => {
-  console.error("Uncaught Exception:", err);
+  console.error("Uncaught Exception — shutting down:", err);
+  process.exit(1);
 });
 
 process.on("unhandledRejection", (reason) => {
   console.error("Unhandled Rejection:", reason);
 });
 
-process.stdin.resume(); // Keep process alive
-
 // ── KEEP RENDER ALIVE ──────────────────────────────────────────────
 // Render free tier spins down after 15 minutes of inactivity.
 // This self-ping keeps the service awake by hitting the /health endpoint every 14 minutes.
-if (process.env.NODE_ENV === 'production') {
+if (isProduction) {
   console.log('🏓 Production mode detected — starting self-ping service');
   
   // Initial ping after 30 seconds to ensure server is fully started

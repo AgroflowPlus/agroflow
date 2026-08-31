@@ -1,11 +1,25 @@
 import webpush from 'web-push'
 import prisma from '../db/index'
 
-webpush.setVapidDetails(
-  process.env.VAPID_EMAIL!,
-  process.env.VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-)
+// Push is a nice-to-have, not a hard dependency. This used to run with `!`
+// assertions at module load, so a missing VAPID var took the whole API down
+// at boot instead of just disabling notifications.
+const VAPID_EMAIL = process.env.VAPID_EMAIL
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY
+
+let pushEnabled = false
+
+if (VAPID_EMAIL && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  try {
+    webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+    pushEnabled = true
+  } catch (err) {
+    console.error('Push notifications disabled — invalid VAPID config:', err)
+  }
+} else {
+  console.warn('Push notifications disabled — VAPID env vars are not configured')
+}
 
 export interface NotificationPayload {
   title:  string
@@ -22,6 +36,8 @@ export async function sendNotificationToUser(
   userId: string,
   payload: NotificationPayload,
 ) {
+  if (!pushEnabled) return
+
   try {
     const subs = await prisma.pushSubscription.findMany({ where: { userId } })
     if (!subs.length) {
@@ -136,7 +152,8 @@ export async function notifyOrderStatusUpdate(
   userIds: string[],
   cropType: string,
   status: string,
-  orderId: string
+  orderId: string,
+  rider?: { riderName?: string; riderPhone?: string },
 ) {
   const statusMessages: Record<string, string> = {
     placed:             'Order placed successfully.',
@@ -160,12 +177,21 @@ export async function notifyOrderStatusUpdate(
     cancelled:          '❌',
   }
 
+  // The whole point of assigning a rider is handing their contact to the
+  // buyer, so put it in the notification rather than a generic message.
+  let body = statusMessages[status] || `Order status: ${status}`
+  if (status === 'transport_assigned' && rider?.riderName) {
+    body = rider.riderPhone
+      ? `${rider.riderName} is delivering your order — ${rider.riderPhone}`
+      : `${rider.riderName} is delivering your order.`
+  }
+
   await sendNotificationToUsers(userIds, {
     title: `${statusIcons[status] || '📦'} Order Update — ${cropType}`,
-    body: statusMessages[status] || `Order status: ${status}`,
+    body,
     url: '/orders',
     tag: 'order-update',
-    data: { type: 'order_update', status, cropType, orderId }
+    data: { type: 'order_update', status, cropType, orderId, ...(rider || {}) }
   })
 }
 

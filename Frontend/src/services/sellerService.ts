@@ -1,6 +1,5 @@
 import { apiFetch } from './marketService';
-
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://ai-farmer-platform-backend-code.onrender.com/api';
+import { BASE_URL } from './apiConfig';
 
 export interface SellerVerificationStatus {
   id: string;
@@ -33,26 +32,27 @@ export const sellerService = {
     }
   },
 
-  // ── Submit verification ────────────────────────────────────────
+  // ── Submit verification with FormData ────────────────────────────
   async submitVerification(
-    selfieUrl: string, 
+    selfieFile: File,
     description?: string,
     farmName?: string,
     yearsExperience?: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
+      const formData = new FormData();
+      formData.append('selfie', selfieFile);
+      if (description) formData.append('description', description);
+      if (farmName) formData.append('farmName', farmName);
+      if (yearsExperience) formData.append('yearsExperience', yearsExperience);
+
       const res = await apiFetch(`${BASE_URL}/sellers/verify`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('agf_token')}`,
+          // Don't set Content-Type - browser sets it with boundary for FormData
         },
-        body: JSON.stringify({ 
-          selfieUrl, 
-          description,
-          farmName,
-          yearsExperience 
-        }),
+        body: formData,
       });
       const data = await res.json();
       if (!res.ok) {

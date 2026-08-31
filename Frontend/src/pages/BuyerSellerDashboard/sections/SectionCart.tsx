@@ -57,7 +57,8 @@ export function SectionCart({ onOrderPlaced }: Props) {
 
       const failed = results.filter((r) => !r.success);
       if (failed.length > 0) {
-        addToast(`${failed.length} items failed to order`, 'error');
+        console.error('Failed order results:', failed);
+        addToast(failed[0].error || `${failed.length} items failed to order`, 'error');
       } else {
         addToast('All orders placed successfully!', 'success');
         clearCart();

@@ -12,6 +12,121 @@ import { useCartStore } from "../../../store/cartStore";
 import { useFavoritesStore } from "../../../store/favoritesStore";
 import { useToast } from "../../../context/ToastContext";
 
+// ── Image Carousel Component ──────────────────────────────────────────────
+function ImageCarousel({ photos, alt }: { photos: string[]; alt: string }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [touchStartX, setTouchStartX] = useState<number>(0);
+
+  const goTo = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    setActiveIndex(index);
+  };
+
+  const goNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveIndex((prev) => (prev + 1) % photos.length);
+  };
+
+  const goPrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveIndex((prev) => (prev - 1 + photos.length) % photos.length);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX - touchEndX;
+    const threshold = 40;
+
+    if (diff > threshold) {
+      setActiveIndex((prev) => (prev + 1) % photos.length);
+    } else if (diff < -threshold) {
+      setActiveIndex((prev) => (prev - 1 + photos.length) % photos.length);
+    }
+  };
+
+  return (
+    <div
+      style={{ position: 'relative', width: '100%', height: '100%' }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      <img
+        src={photos[activeIndex]}
+        alt={alt}
+        className={styles.cardImage}
+      />
+
+      {photos.length > 1 && (
+        <>
+          {/* Left tap zone */}
+          <div
+            onClick={goPrev}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '35%',
+              height: '100%',
+              cursor: 'pointer',
+              zIndex: 2,
+            }}
+          />
+          {/* Right tap zone */}
+          <div
+            onClick={goNext}
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: '35%',
+              height: '100%',
+              cursor: 'pointer',
+              zIndex: 2,
+            }}
+          />
+
+          {/* Dots */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 6,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              gap: 5,
+              zIndex: 3,
+            }}
+          >
+            {photos.map((_, i) => (
+              <button
+                key={i}
+                onClick={(e) => goTo(e, i)}
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  background: i === activeIndex ? '#fff' : 'rgba(255,255,255,0.5)',
+                  boxShadow: '0 0 2px rgba(0,0,0,0.4)',
+                  transition: 'background 0.2s',
+                }}
+                aria-label={`View photo ${i + 1}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Listing Card Component ──────────────────────────────────────────────
 interface ListingCardProps {
   listing: Listing;
   intent: "buy" | "sell";
@@ -48,7 +163,6 @@ export function ListingCard({
     e.stopPropagation();
     if (isAddingToCart) return;
 
-    // Toggle — if in cart remove, if not add
     if (inCart) {
       removeItem(listing.id);
       addToast("Removed from cart", "info");
@@ -72,12 +186,8 @@ export function ListingCard({
     >
       {/* ── IMAGE AREA ── */}
       <div className={styles.cardImageArea}>
-        {listing.photoUrl ? (
-          <img
-            src={listing.photoUrl}
-            alt={listing.cropType}
-            className={styles.cardImage}
-          />
+        {listing.photoUrls && listing.photoUrls.length > 0 ? (
+          <ImageCarousel photos={listing.photoUrls} alt={listing.cropType} />
         ) : (
           <div
             className={styles.cardImagePlaceholder}
@@ -243,11 +353,11 @@ export function ListingCard({
 
         {/* Quantity — prominent */}
         <div style={{ fontSize: 17, fontWeight: 800, color: '#2d6a35' }}>
-  {listing.remainingQty}kg
-  <span style={{ fontSize: 10, color: '#9ead9f', marginLeft: 4 }}>
-    / {listing.quantity}kg
-  </span>
-</div>
+          {listing.remainingQty}kg
+          <span style={{ fontSize: 10, color: '#9ead9f', marginLeft: 4 }}>
+            / {listing.quantity}kg
+          </span>
+        </div>
 
         {/* Description — 1 line only */}
         {listing.description && (

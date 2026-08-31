@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react'
 import { authService } from '../services/authService'
+import { BASE_URL } from '../services/apiConfig'
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api'
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
+
+// Read the capability directly instead of through React state. `subscribe`
+// is called from inside the mount effect, where it closes over the *initial*
+// `isSupported` value (false) — so the auto-subscribe path always bailed out
+// with "not supported" even on browsers that support push perfectly well.
+function pushSupported(): boolean {
+  return 'serviceWorker' in navigator && 'PushManager' in window
+}
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -23,14 +31,9 @@ export function usePushNotifications() {
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null)
 
   useEffect(() => {
-    // ── TEMPORARY DEBUG: Log all env vars ──
-    console.log('🔔 All env vars:', import.meta.env)
-    console.log('🔔 VITE_VAPID_PUBLIC_KEY:', import.meta.env.VITE_VAPID_PUBLIC_KEY)
-    console.log('🔔 VITE_API_URL:', import.meta.env.VITE_API_URL)
-
-    const supported = 'serviceWorker' in navigator && 'PushManager' in window
-    console.log('🔔 Push supported:', supported)
-    console.log('🔔 VAPID key present:', !!VAPID_PUBLIC_KEY)
+    // Logging `import.meta.env` dumped every VITE_* value — including the
+    // API URL and VAPID key — into the browser console of every visitor.
+    const supported = pushSupported()
     setIsSupported(supported)
 
     let mounted = true
@@ -38,15 +41,11 @@ export function usePushNotifications() {
     if (supported) {
       checkSubscription().then(async (alreadySubscribed) => {
         if (!mounted) return
-        
-        console.log('🔔 Already subscribed:', alreadySubscribed)
-        
+
         // Auto-subscribe if running as installed PWA and not already subscribed
         const isPWA = window.matchMedia('(display-mode: standalone)').matches
-        console.log('🔔 Is PWA:', isPWA)
-        
+
         if (isPWA && !alreadySubscribed) {
-          console.log('🔔 PWA detected — auto-subscribing...')
           // Small delay to let the user see the permission prompt
           setTimeout(() => {
             if (mounted) {
@@ -55,7 +54,7 @@ export function usePushNotifications() {
           }, 1000)
         }
       }).catch(error => {
-        console.error('🔔 Error checking subscription:', error)
+        console.error('Error checking push subscription:', error)
       })
     }
 
@@ -63,16 +62,18 @@ export function usePushNotifications() {
     const mediaQuery = window.matchMedia('(display-mode: standalone)')
     const handleDisplayChange = () => {
       if (mediaQuery.matches) {
-        console.log('🔔 App switched to standalone mode (PWA installed)')
-        checkSubscription().then((alreadySubscribed) => {
-          if (!alreadySubscribed) {
-            console.log('🔔 Auto-subscribing after PWA install...')
-            subscribe()
-          }
-        })
+        checkSubscription()
+          .then((alreadySubscribed) => {
+            if (!alreadySubscribed) subscribe()
+          })
+          // An unhandled rejection here surfaced as a console error with no
+          // context and left the UI thinking it was still subscribing.
+          .catch(error => {
+            console.error('Auto-subscribe after PWA install failed:', error)
+          })
       }
     }
-    
+
     mediaQuery.addEventListener('change', handleDisplayChange)
 
     return () => {
@@ -87,12 +88,11 @@ export function usePushNotifications() {
       const reg = await navigator.serviceWorker.ready
       const sub = await reg.pushManager.getSubscription()
       const hasSubscription = !!sub
-      console.log('🔔 Current subscription:', hasSubscription ? 'Active' : 'None')
       setIsSubscribed(hasSubscription)
       setSubscriptionError(null)
       return hasSubscription
     } catch (error) {
-      console.error('🔔 Check subscription error:', error)
+      console.error('Check push subscription failed:', error)
       setIsSubscribed(false)
       setSubscriptionError('Failed to check subscription status')
       return false
@@ -100,14 +100,14 @@ export function usePushNotifications() {
   }
 
   const subscribe = async (): Promise<boolean> => {
-    if (!isSupported) {
-      console.warn('🔔 Push notifications not supported')
+    // Capability is read live, not from state — see pushSupported().
+    if (!pushSupported()) {
       setSubscriptionError('Push notifications not supported in this browser')
       return false
     }
-    
+
     if (!VAPID_PUBLIC_KEY) {
-      console.warn('🔔 VAPID public key not configured')
+      console.warn('Push notifications not configured — VAPID public key missing')
       setSubscriptionError('Push notifications not configured (missing VAPID key)')
       return false
     }
@@ -117,16 +117,14 @@ export function usePushNotifications() {
 
     // Safety timeout — stop spinning after 10 seconds no matter what
     let timeoutId: number | undefined = setTimeout(() => {
-      console.log('🔔 Subscribe timeout after 10 seconds - resetting loading state')
       setIsLoading(false)
-      setSubscriptionError('Subscription timed out - please try again')
+      setSubscriptionError('Subscription timed out — please try again')
     }, 10000)
 
     try {
       // Request permission
       const permission = await Notification.requestPermission()
-      console.log('🔔 Notification permission:', permission)
-      
+
       if (permission !== 'granted') {
         clearTimeout(timeoutId)
         setIsLoading(false)
@@ -136,14 +134,12 @@ export function usePushNotifications() {
 
       // Wait for service worker
       const reg = await navigator.serviceWorker.ready
-      console.log('🔔 SW ready, subscribing...')
-      
+
       // Subscribe to push
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       })
-      console.log('🔔 Subscribed successfully:', sub.endpoint)
 
       // Send to server
       const token = authService.getToken()
@@ -156,26 +152,24 @@ export function usePushNotifications() {
 
       const response = await fetch(`${BASE_URL}/push/subscribe`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
-          Authorization: `Bearer ${token}` 
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify(sub.toJSON()),
       })
-      
-      console.log('🔔 Server response status:', response.status)
-      
+
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error('🔔 Server error response:', errorText)
+        // The raw response body was shown to the user, so a proxy error page
+        // or stack trace could end up rendered in the UI. Log the detail and
+        // show something a person can act on.
+        const errorText = await response.text().catch(() => '')
+        console.error('Push subscribe failed:', response.status, errorText)
         clearTimeout(timeoutId)
         setIsLoading(false)
-        setSubscriptionError(`Server error: ${response.status} ${errorText}`)
+        setSubscriptionError('Could not enable notifications. Please try again.')
         return false
       }
-
-      const responseData = await response.json()
-      console.log('🔔 Server response data:', responseData)
 
       clearTimeout(timeoutId)
       setIsSubscribed(true)
@@ -183,57 +177,58 @@ export function usePushNotifications() {
       setSubscriptionError(null)
       return true
     } catch (err: any) {
-      console.error('🔔 Subscribe failed:', err.message, err)
+      // `err.message` was rendered straight into the UI, so a browser-internal
+      // message like "Registration failed - push service error" reached the
+      // user verbatim. Log the detail, show plain language.
+      console.error('Push subscribe failed:', err)
       clearTimeout(timeoutId)
       setIsLoading(false)
-      setSubscriptionError(err.message || 'Subscription failed')
+      setSubscriptionError(
+        err?.name === 'NotAllowedError'
+          ? 'Notification permission was blocked in your browser settings'
+          : 'Could not enable notifications. Please try again.'
+      )
       return false
     }
   }
 
   const unsubscribe = async () => {
-    console.log('🔔 Unsubscribe called')
     setIsLoading(true)
     setSubscriptionError(null)
-    
+
     try {
       const reg = await navigator.serviceWorker.ready
       const sub = await reg.pushManager.getSubscription()
-      
+
       if (sub) {
-        console.log('🔔 Unsubscribing from:', sub.endpoint)
-        
-        // Unsubscribe from server
+        // Tell the server first. Unsubscribing locally before the server call
+        // meant a failed request left an orphaned row that the backend kept
+        // pushing to forever.
         const token = authService.getToken()
         if (token) {
           const response = await fetch(`${BASE_URL}/push/unsubscribe`, {
             method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json', 
-              Authorization: `Bearer ${token}` 
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
             },
             body: JSON.stringify({ endpoint: sub.endpoint }),
           })
-          console.log('🔔 Unsubscribe server response:', response.status)
+
+          if (!response.ok) {
+            console.error('Server failed to remove push subscription:', response.status)
+          }
         }
-        
+
         // Unsubscribe from push manager
         await sub.unsubscribe()
         setIsSubscribed(false)
-        console.log('🔔 Unsubscribed successfully')
       } else {
-        console.log('🔔 No active subscription to unsubscribe')
         setIsSubscribed(false)
       }
     } catch (error) {
-      console.error('🔔 Unsubscribe error:', error)
-      if (error instanceof Error) {
-        console.error('🔔 Error name:', error.name)
-        console.error('🔔 Error message:', error.message)
-        setSubscriptionError(error.message)
-      } else {
-        setSubscriptionError('Failed to unsubscribe')
-      }
+      console.error('Push unsubscribe failed:', error)
+      setSubscriptionError('Could not turn off notifications. Please try again.')
     } finally {
       setIsLoading(false)
     }
