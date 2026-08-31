@@ -365,7 +365,7 @@ const aiListings: Listing[] = aiRecommendations.map((rec) => ({
   remainingQty: rec.quantity,
   location: rec.location,
   description: "",
-  photoUrls: rec.photoUrls || (rec.photoUrl ? [rec.photoUrl] : []),  // ← FIXED
+  photoUrls: rec.photoUrls || (rec.photoUrl ? [rec.photoUrl] : []),
   status: "available",
   createdAt: new Date().toISOString(),
   distance: rec.distance,

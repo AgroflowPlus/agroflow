@@ -163,15 +163,15 @@ export function SectionCart({ onOrderPlaced }: Props) {
                 flexShrink: 0,
               }}
             >
-              {item.listing.photoUrl ? (
-                <img
-                  src={item.listing.photoUrl}
-                  alt={item.listing.cropType}
-                  style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover' }}
-                />
-              ) : (
-                <RiLeafLine size={28} color="#2d6a35" />
-              )}
+              {item.listing.photoUrls && item.listing.photoUrls.length > 0 ? (
+  <img
+    src={item.listing.photoUrls[0]}
+    alt={item.listing.cropType}
+    style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover' }}
+  />
+) : (
+  <RiLeafLine size={28} color="#2d6a35" />
+)}
             </div>
 
             {/* Info */}
