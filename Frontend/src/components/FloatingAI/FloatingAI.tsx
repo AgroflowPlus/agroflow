@@ -22,6 +22,9 @@ export default function FloatingAI({ navbarMode = false }: Props) {
   const posRef     = useRef(pos)
   const isDragging = useRef(false)
   const moved      = useRef(false)
+  const pointerDownAt = useRef({ x: 0, y: 0 })
+
+  const MOVE_THRESHOLD = 8 // px — real drags move way more than this; taps barely move at all
 
   const isOnFarmerDashboard = location.pathname.startsWith('/farmer')
 
@@ -75,13 +78,21 @@ export default function FloatingAI({ navbarMode = false }: Props) {
       x: e.clientX - posRef.current.x,
       y: e.clientY - posRef.current.y,
     }
+    pointerDownAt.current = { x: e.clientX, y: e.clientY } // track raw start point
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     setDragging(true)
   }
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (!isDragging.current) return
-    moved.current = true
+
+    // Only count as "moved" once we cross the threshold — filters out tap jitter
+    const dx = Math.abs(e.clientX - pointerDownAt.current.x)
+    const dy = Math.abs(e.clientY - pointerDownAt.current.y)
+    if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
+      moved.current = true
+    }
+
     const nx = e.clientX - dragStart.current.x
     const ny = e.clientY - dragStart.current.y
     const clamped = {
@@ -96,13 +107,19 @@ export default function FloatingAI({ navbarMode = false }: Props) {
     if (!isDragging.current) return
     isDragging.current = false
     setDragging(false)
-    const snapped = snapToEdge(posRef.current.x, posRef.current.y)
-    posRef.current = snapped
-    setPos(snapped)
+
+    if (moved.current) {
+      // real drag — snap to edge
+      const snapped = snapToEdge(posRef.current.x, posRef.current.y)
+      posRef.current = snapped
+      setPos(snapped)
+    } else {
+      // was a tap — open directly here instead of waiting on onClick
+      handleClick()
+    }
   }
 
   function handleClick() {
-    if (moved.current) return // was a drag, not a tap
     setShowTooltip(false)
     setHasOpened(true)
     localStorage.setItem('agf_ai_tooltip_seen', 'true')
@@ -175,7 +192,6 @@ export default function FloatingAI({ navbarMode = false }: Props) {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onClick={handleClick}
         aria-label="Open AI assistant"
       >
         <RiRobot2Fill size={24} />

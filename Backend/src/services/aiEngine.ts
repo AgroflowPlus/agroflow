@@ -377,6 +377,7 @@ export async function processAIRequest(input: AIInput): Promise<AIResponse> {
     console.log(`   ✅ AI explanation generated`);
   } catch (err: any) {
     console.log(`   ⚠️ AI unavailable, using fallback`);
+    console.error("   ❌ Groq error:", err.message || err); // ADD THIS LINE
     aiText = getFallbackResponse(ruleResult);
     source = "fallback";
   }
