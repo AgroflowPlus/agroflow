@@ -10,12 +10,17 @@ const VOICES = {
 // ── ENGLISH + PIDGIN — msedge-tts ────────────────────────────
 async function edgeTTS(text: string, voice: string): Promise<Buffer> {
   const tts = new MsEdgeTTS();
+  
+  // 1. FIX THE ENDPOINT: Force the library to use the new Microsoft server
+  // because the old "speech.platform.bing.com" is blocked by Microsoft.
+  (tts as any)._wsUrl = 'wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1';
+
   await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
 
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     
-    // THE FIX: In the new msedge-tts, toStream() returns the stream directly
+    // 2. FIX THE STREAM: In the new msedge-tts, toStream() returns the stream directly
     const audioStream = tts.toStream(text) as any;
 
     audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
