@@ -14,8 +14,8 @@ async function edgeTTS(text: string, voice: string): Promise<Buffer> {
     const tts = new EdgeTTS(text, voice);
     const result = await tts.synthesize();
     
-    // It returns a Buffer directly
-    return result.audio;
+    // Convert the Uint8Array result to a Node.js Buffer
+    return Buffer.from(result.audio);
   } catch (err: any) {
     console.error('❌ TTS FAILED (synchronous):', err?.message, err);
     throw err;
