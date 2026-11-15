@@ -3,7 +3,7 @@ import multer from 'multer';
 import { protect, AuthRequest } from '../middleware/auth';
 import prisma from '../db/index';
 import { processVoiceInput, translateFromEnglish } from '../services/voiceService';
-import { textToSpeech } from '../services/ttsService';
+import { textToSpeech, TTSUnavailableError } from '../services/ttsService'; // <-- Updated import
 import { processAIRequest, AIInput, CropType } from '../services/aiEngine';
 
 const router  = Router();
@@ -145,7 +145,14 @@ router.post('/speak', protect, async (req: AuthRequest, res: Response) => {
     });
 
   } catch (err: any) {
-    console.error('TTS error:', err.message);
+    // ── FALLBACK LOGIC ─────────────────────────────────────────
+    if (err instanceof TTSUnavailableError) {
+      // Tell frontend to use browser's native SpeechSynthesis
+      res.status(503).json({ error: 'TTS unavailable', fallback: true });
+      return;
+    }
+    
+    console.error('Speak error:', err);
     res.status(500).json({ error: 'Failed to generate speech' });
   }
 });
