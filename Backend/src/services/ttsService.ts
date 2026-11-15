@@ -1,4 +1,4 @@
-import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
+import { EdgeTTS } from 'edge-tts-universal';
 import axios from 'axios';
 
 // ── VOICES ────────────────────────────────────────────────────
@@ -7,32 +7,17 @@ const VOICES = {
   pidgin:  'en-NG-EzinneNeural',  // Pidgin — Nigerian English voice
 };
 
-// ── ENGLISH + PIDGIN — msedge-tts ────────────────────────────
+// ── ENGLISH + PIDGIN — edge-tts-universal ────────────────────
 async function edgeTTS(text: string, voice: string): Promise<Buffer> {
   try {
-    const tts = new MsEdgeTTS();
+    // The new library uses a simple, modern API
+    const tts = new EdgeTTS(text, voice);
+    const result = await tts.synthesize();
     
-    // Force the new endpoint
-    (tts as any)._wsUrl = 'wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1';
-
-    await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
-
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      const audioStream = tts.toStream(text) as any;
-
-      // 1. Attach deep error logging to the stream
-      audioStream.on('error', (e: any) => {
-        console.error('❌ TTS stream error:', e);
-        reject(e);
-      });
-
-      audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
-      audioStream.on('end',  () => resolve(Buffer.concat(chunks)));
-    });
+    // It returns a Buffer directly
+    return result.audio;
   } catch (err: any) {
-    // 2. Log the real error from the try/catch block
-    console.error('❌ TTS FAILED (synchronous):', err?.message, err?.code, err);
+    console.error('❌ TTS FAILED (synchronous):', err?.message, err);
     throw err;
   }
 }
