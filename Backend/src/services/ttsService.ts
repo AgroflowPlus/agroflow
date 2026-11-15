@@ -14,11 +14,13 @@ async function edgeTTS(text: string, voice: string): Promise<Buffer> {
 
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    const { audioStream } = tts.toStream(text);
+    
+    // THE FIX: In the new msedge-tts, toStream() returns the stream directly
+    const audioStream = tts.toStream(text) as any;
 
     audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
     audioStream.on('end',  () => resolve(Buffer.concat(chunks)));
-    audioStream.on('error', reject);
+    audioStream.on('error', (err: Error) => reject(err));
   });
 }
 
