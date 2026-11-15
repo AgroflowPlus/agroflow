@@ -9,24 +9,32 @@ const VOICES = {
 
 // ── ENGLISH + PIDGIN — msedge-tts ────────────────────────────
 async function edgeTTS(text: string, voice: string): Promise<Buffer> {
-  const tts = new MsEdgeTTS();
-  
-  // 1. FIX THE ENDPOINT: Force the library to use the new Microsoft server
-  // because the old "speech.platform.bing.com" is blocked by Microsoft.
-  (tts as any)._wsUrl = 'wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1';
-
-  await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
-
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
+  try {
+    const tts = new MsEdgeTTS();
     
-    // 2. FIX THE STREAM: In the new msedge-tts, toStream() returns the stream directly
-    const audioStream = tts.toStream(text) as any;
+    // Force the new endpoint
+    (tts as any)._wsUrl = 'wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1';
 
-    audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
-    audioStream.on('end',  () => resolve(Buffer.concat(chunks)));
-    audioStream.on('error', (err: Error) => reject(err));
-  });
+    await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
+
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      const audioStream = tts.toStream(text) as any;
+
+      // 1. Attach deep error logging to the stream
+      audioStream.on('error', (e: any) => {
+        console.error('❌ TTS stream error:', e);
+        reject(e);
+      });
+
+      audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      audioStream.on('end',  () => resolve(Buffer.concat(chunks)));
+    });
+  } catch (err: any) {
+    // 2. Log the real error from the try/catch block
+    console.error('❌ TTS FAILED (synchronous):', err?.message, err?.code, err);
+    throw err;
+  }
 }
 
 // ── YORUBA — HuggingFace Facebook MMS TTS ────────────────────
@@ -66,7 +74,7 @@ export async function textToSpeech(
     return { audio, mimeType: 'audio/mpeg' };
 
   } catch (err: any) {
-    console.error(`❌ TTS failed: ${err.message} — falling back to English`);
+    console.error(`🚨 TTS completely failed: ${err.message} — falling back to English`);
     const audio = await edgeTTS(text, 'en-NG-EzinneNeural');
     return { audio, mimeType: 'audio/mpeg' };
   }
