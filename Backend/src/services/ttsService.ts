@@ -10,12 +10,13 @@ const VOICES = {
 // ── ENGLISH + PIDGIN — edge-tts-universal ────────────────────
 async function edgeTTS(text: string, voice: string): Promise<Buffer> {
   try {
-    // The new library uses a simple, modern API
     const tts = new EdgeTTS(text, voice);
     const result = await tts.synthesize();
     
-    // Convert the Uint8Array result to a Node.js Buffer
-    return Buffer.from(result.audio);
+    // The library returns a Blob. Convert it to an ArrayBuffer, then to a Node Buffer.
+    const arrayBuffer = await result.audio.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+    
   } catch (err: any) {
     console.error('❌ TTS FAILED (synchronous):', err?.message, err);
     throw err;
