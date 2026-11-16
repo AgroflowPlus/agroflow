@@ -3,7 +3,7 @@ import multer from 'multer';
 import { protect, AuthRequest } from '../middleware/auth';
 import prisma from '../db/index';
 import { processVoiceInput, translateFromEnglish } from '../services/voiceService';
-import { textToSpeech, TTSUnavailableError } from '../services/ttsService'; // <-- Updated import
+import { textToSpeech, TTSUnavailableError } from '../services/ttsService';
 import { processAIRequest, AIInput, CropType } from '../services/aiEngine';
 
 const router  = Router();
@@ -154,6 +154,33 @@ router.post('/speak', protect, async (req: AuthRequest, res: Response) => {
     
     console.error('Speak error:', err);
     res.status(500).json({ error: 'Failed to generate speech' });
+  }
+});
+
+// ── GET /voice/tts-test (TEMPORARY TEST ROUTE) ────────────────
+router.get('/tts-test', async (req: Request, res: Response) => {
+  try {
+    const { EdgeTTS } = await import('edge-tts-universal');
+    
+    console.log('🧪 Starting TTS test...');
+    const tts = new EdgeTTS('Hello, welcome to AgroFlow', 'en-NG-EzinneNeural');
+    const result = await tts.synthesize();
+    
+    const buffer = Buffer.from(await result.audio.arrayBuffer());
+    
+    console.log('✅ TTS Test Success! Bytes:', buffer.length);
+    res.status(200).json({
+      success: true,
+      message: 'TTS works from Render!',
+      bytes: buffer.length,
+    });
+  } catch (err: any) {
+    console.error('❌ TTS Test Failed:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Unknown error',
+      stack: err.stack,
+    });
   }
 });
 
